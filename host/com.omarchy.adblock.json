@@ -1,0 +1,9 @@
+{
+  "name": "com.omarchy.adblock",
+  "description": "Omarchy ad blocker classification host",
+  "path": "__HOST_PATH__",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://__EXTENSION_ID__/"
+  ]
+}

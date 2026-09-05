@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# omarchy:summary=Native messaging host: classify and cache ad/popup rules per site
+# omarchy:hidden=true
+
+# Chromium launches this with none of the user's environment, so the interpreter
+# is located here rather than assumed. The virtualenv is where install.sh put the
+# anthropic SDK; without it the host still runs and serves the on-disk cache,
+# which is what keeps the extension working when the AI half is not set up.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+VENV="${OMARCHY_ADBLOCK_VENV:-$HOME/.local/share/omarchy-adblock/venv}"
+
+export PATH="/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:$PATH"
+
+if [[ -x "$VENV/bin/python" ]]; then
+  exec "$VENV/bin/python" "$SCRIPT_DIR/adblock_host.py"
+fi
+
+exec python3 "$SCRIPT_DIR/adblock_host.py"

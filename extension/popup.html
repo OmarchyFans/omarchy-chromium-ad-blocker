@@ -1,0 +1,62 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Omarchy Ad Blocker</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1c1c1e; --muted: #6b6b70;
+    --line: #e3e3e6; --accent: #2f6feb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1c1c1e; --fg: #ececef; --muted: #98989f;
+            --line: #2f2f33; --accent: #6f9bff; }
+  }
+  body { margin: 0; width: 272px; background: var(--bg); color: var(--fg);
+         font: 13px/1.45 system-ui, sans-serif; }
+  header { padding: 12px 14px 10px; border-bottom: 1px solid var(--line); }
+  h1 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .01em; }
+  .host { margin-top: 2px; color: var(--muted); font-size: 12px;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row { display: flex; align-items: center; justify-content: space-between;
+         gap: 10px; padding: 9px 14px; }
+  .row + .row { border-top: 1px solid var(--line); }
+  .row label { flex: 1; cursor: pointer; }
+  .sub { display: block; color: var(--muted); font-size: 11px; }
+  input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+  footer { padding: 9px 14px 12px; border-top: 1px solid var(--line); }
+  button { width: 100%; padding: 6px; font: inherit; color: var(--fg);
+           background: transparent; border: 1px solid var(--line);
+           border-radius: 6px; cursor: pointer; }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  #status { margin-top: 8px; color: var(--muted); font-size: 11px; }
+</style>
+
+<header>
+  <h1>Omarchy Ad Blocker</h1>
+  <div class="host" id="host">—</div>
+</header>
+
+<div class="row">
+  <label for="enabled">Blocking on
+    <span class="sub" id="count">nothing blocked yet</span></label>
+  <input type="checkbox" id="enabled">
+</div>
+
+<div class="row">
+  <label for="ai">Ask Claude about leftovers
+    <span class="sub">Static rules and heuristics always run</span></label>
+  <input type="checkbox" id="ai">
+</div>
+
+<div class="row">
+  <label for="allow">Never block this site
+    <span class="sub" id="allowHost">—</span></label>
+  <input type="checkbox" id="allow">
+</div>
+
+<footer>
+  <button id="forget">Re-learn this site</button>
+  <div id="status">…</div>
+</footer>
+
+<script src="popup.js"></script>

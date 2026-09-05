@@ -1,0 +1,133 @@
+#!/bin/bash
+
+# omarchy:summary=Manage the AI ad blocker: status, cache, restart
+
+set -euo pipefail
+
+CONFIG_DIR="$HOME/.config/omarchy-adblock"
+DATA_DIR="$HOME/.local/share/omarchy-adblock"
+RULES="$DATA_DIR/rules"
+
+usage() {
+  cat <<USAGE
+Usage: omarchy-adblock <command>
+
+  status            What is installed, configured and learned
+  sites             Sites with learned rules, and how many each has
+  show <host>       The rules learned for one site
+  forget <host>     Throw away one site's learned rules
+  forget-all        Throw away every learned rule
+  key <api-key>     Store the Anthropic API key
+  model <id>        Set the model (e.g. claude-haiku-4-5 for a cheaper pass)
+  restart           Fully restart Chromium so changes take effect
+USAGE
+}
+
+has_key() {
+  [[ -f "$CONFIG_DIR/env" ]] &&
+    grep -qE '^ANTHROPIC_API_KEY=.+' "$CONFIG_DIR/env"
+}
+
+cfg_get() {
+  python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get(sys.argv[2],''))" \
+    "$CONFIG_DIR/config.json" "$1" 2>/dev/null || true
+}
+
+case "${1:-status}" in
+status)
+  echo "Omarchy Ad Blocker"
+  echo
+  if grep -qs -- "-adblock-ai/extension" "$HOME/.config/chromium-flags.conf"; then
+    echo "  Extension   loaded via ~/.config/chromium-flags.conf"
+  else
+    echo "  Extension   NOT in chromium-flags.conf — run ./install.sh"
+  fi
+  if [[ -f "$HOME/.config/chromium/NativeMessagingHosts/com.omarchy.adblock.json" ]]; then
+    echo "  Host        registered"
+  else
+    echo "  Host        NOT registered — run ./install.sh"
+  fi
+  if [[ -x "$DATA_DIR/venv/bin/python" ]]; then
+    echo "  SDK         $("$DATA_DIR/venv/bin/python" -c 'import anthropic;print("anthropic "+anthropic.__version__)' 2>/dev/null || echo "missing — re-run ./install.sh")"
+  else
+    echo "  SDK         not installed (heuristics only)"
+  fi
+  if has_key; then
+    echo "  API key     set"
+    echo "  Model       $(cfg_get model)"
+  else
+    echo "  API key     not set — heuristics only"
+  fi
+  echo "  Learned     $(ls -1 "$RULES" 2>/dev/null | wc -l) sites"
+  ;;
+
+sites)
+  [[ -d $RULES ]] || { echo "Nothing learned yet."; exit 0; }
+  shopt -s nullglob
+  files=("$RULES"/*.json)
+  ((${#files[@]})) || { echo "Nothing learned yet."; exit 0; }
+  for f in "${files[@]}"; do
+    printf '%-40s %s rules\n' "$(basename "$f" .json)" \
+      "$(python3 -c "import json,sys;print(len(json.load(open(sys.argv[1]))['block']))" "$f" 2>/dev/null || echo '?')"
+  done
+  ;;
+
+show)
+  host="${2:?usage: omarchy-adblock show <host>}"
+  f="$RULES/$host.json"
+  [[ -f $f ]] || { echo "No rules learned for $host."; exit 1; }
+  python3 -c "import json,sys;d=json.load(open(sys.argv[1]));print('\n'.join(d['block']))" "$f"
+  ;;
+
+forget)
+  host="${2:?usage: omarchy-adblock forget <host>}"
+  rm -f "$RULES/$host.json" && echo "Forgot $host. Reload the page to re-learn it."
+  ;;
+
+forget-all)
+  rm -f "$RULES"/*.json 2>/dev/null || true
+  echo "Forgot every learned site."
+  ;;
+
+key)
+  k="${2:?usage: omarchy-adblock key <api-key>}"
+  mkdir -p "$CONFIG_DIR"
+  # Rewrite the line rather than append, so a second call replaces the key
+  # instead of leaving a stale one above it that the host would read first.
+  python3 - "$CONFIG_DIR/env" "$k" <<'PY'
+import pathlib, sys
+path, key = pathlib.Path(sys.argv[1]), sys.argv[2]
+lines = path.read_text().splitlines() if path.is_file() else []
+lines = [l for l in lines if not l.startswith("ANTHROPIC_API_KEY=")]
+lines.append("ANTHROPIC_API_KEY=" + key)
+path.write_text("\n".join(lines) + "\n")
+PY
+  chmod 600 "$CONFIG_DIR/env"
+  echo "Key stored. Restart Chromium: omarchy-adblock restart"
+  ;;
+
+model)
+  m="${2:?usage: omarchy-adblock model <model-id>}"
+  mkdir -p "$CONFIG_DIR"
+  python3 - "$CONFIG_DIR/config.json" "$m" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+cfg = json.loads(path.read_text()) if path.is_file() else {}
+cfg["model"] = sys.argv[2]
+path.write_text(json.dumps(cfg, indent=2) + "\n")
+PY
+  echo "Model set to $m. Restart Chromium: omarchy-adblock restart"
+  ;;
+
+restart)
+  # The host manifest and the extension are both read at browser startup, so a
+  # new window is not enough — every Chromium process has to go.
+  pkill -x chromium 2>/dev/null || true
+  sleep 1
+  setsid -f chromium >/dev/null 2>&1 || true
+  echo "Chromium restarted."
+  ;;
+
+-h | --help | help) usage ;;
+*) usage; exit 1 ;;
+esac
