@@ -17,6 +17,7 @@ Usage: omarchy-adblock <command>
   show <host>       The rules learned for one site
   forget <host>     Throw away one site's learned rules
   forget-all        Throw away every learned rule
+  log [n]           Last n lines of the host error log
   key <api-key>     Store the Anthropic API key
   model <id>        Set the model (e.g. claude-haiku-4-5 for a cheaper pass)
   restart           Fully restart Chromium so changes take effect
@@ -59,6 +60,16 @@ status)
     echo "  API key     not set — heuristics only"
   fi
   echo "  Learned     $(ls -1 "$RULES" 2>/dev/null | wc -l) sites"
+  # Chromium throws away the host's stderr, so this log is the only place a
+  # broken AI pass ever shows up.
+  if [[ -s "$DATA_DIR/host.log" ]]; then
+    echo "  Last error  $(tail -n1 "$DATA_DIR/host.log")"
+  fi
+  ;;
+
+log)
+  [[ -s "$DATA_DIR/host.log" ]] && tail -n "${2:-20}" "$DATA_DIR/host.log" \
+    || echo "No errors logged."
   ;;
 
 sites)

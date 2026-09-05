@@ -22,6 +22,7 @@ from pathlib import Path
 CONFIG_DIR = Path.home() / ".config" / "omarchy-adblock"
 DATA_DIR = Path.home() / ".local" / "share" / "omarchy-adblock"
 RULES_DIR = DATA_DIR / "rules"
+LOG_PATH = DATA_DIR / "host.log"
 
 DEFAULTS = {
     # Opus 5 is the default because it is the model Omarchy's agent defaults to
@@ -77,6 +78,24 @@ candidate list, verbatim.\
 # ----------------------------------------------------------------- transport
 
 _stdout_lock = threading.Lock()
+_log_lock = threading.Lock()
+
+
+def log(message):
+    """Chromium discards a native host's stderr, so a failure here is invisible
+    unless it is written down. This file is what `omarchy-adblock status` reads
+    when the AI pass has quietly stopped working."""
+    try:
+        with _log_lock:
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+            stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+            with LOG_PATH.open("a") as fh:
+                fh.write(f"{stamp}  {message}\n")
+            if LOG_PATH.stat().st_size > 256 * 1024:
+                tail = LOG_PATH.read_text().splitlines()[-500:]
+                LOG_PATH.write_text("\n".join(tail) + "\n")
+    except OSError:
+        pass
 
 
 def read_message():
@@ -201,10 +220,16 @@ def read_cache(host, cache_days):
     if time.time() - data.get("updated", 0) > cache_days * 86400:
         return None
     block = data.get("block")
-    return block if isinstance(block, list) else None
+    asked = data.get("asked")
+    return {
+        "block": block if isinstance(block, list) else [],
+        # Every selector the model has ruled on, block or not. Without the "not",
+        # one legitimate sticky header on a busy site is an API call per page load.
+        "asked": asked if isinstance(asked, list) else [],
+    }
 
 
-def write_cache(host, block, model):
+def write_cache(host, block, asked, model):
     RULES_DIR.mkdir(parents=True, exist_ok=True)
     payload = {
         "version": CACHE_VERSION,
@@ -212,17 +237,19 @@ def write_cache(host, block, model):
         "model": model,
         "updated": int(time.time()),
         "block": block,
+        "asked": asked,
     }
     tmp = cache_path(host).with_suffix(".json.tmp")
     tmp.write_text(json.dumps(payload, indent=2))
     tmp.replace(cache_path(host))
 
 
-def merge_cache(host, new_block, model, cache_days):
-    existing = read_cache(host, cache_days) or []
-    merged = list(dict.fromkeys(existing + new_block))[:120]
-    write_cache(host, merged, model)
-    return merged
+def merge_cache(host, new_block, new_asked, model, cache_days):
+    prev = read_cache(host, cache_days) or {"block": [], "asked": []}
+    block = list(dict.fromkeys(prev["block"] + new_block))[:120]
+    asked = list(dict.fromkeys(prev["asked"] + new_asked))[:400]
+    write_cache(host, block, asked, model)
+    return block, asked
 
 
 # ------------------------------------------------------------------ the model
@@ -286,19 +313,20 @@ def classify(host, candidates, cfg, api_key):
         return [], "sdk-missing"
 
     allowed = {c["selector"] for c in candidates}
-
-    # An explicit key wins; without one the SDK resolves the `ant auth login`
-    # profile on its own, so the zero-argument form is not a fallback to nothing.
-    client = (
-        anthropic.Anthropic(api_key=api_key, timeout=25.0, max_retries=1)
-        if api_key
-        else anthropic.Anthropic(timeout=25.0, max_retries=1)
-    )
     user_content = json.dumps(
         {"site": host, "candidates": candidates}, separators=(",", ":")
     )
 
     try:
+        # An explicit key wins; without one the SDK resolves the `ant auth login`
+        # profile itself. Constructing inside the try matters: a profile
+        # directory that exists but holds no usable credential raises here, not
+        # at the request.
+        client = (
+            anthropic.Anthropic(api_key=api_key, timeout=25.0, max_retries=1)
+            if api_key
+            else anthropic.Anthropic(timeout=25.0, max_retries=1)
+        )
         response = client.beta.messages.create(
             model=cfg["model"],
             max_tokens=2000,
@@ -314,6 +342,7 @@ def classify(host, candidates, cfg, api_key):
             fallbacks="default",
         )
     except Exception as exc:  # noqa: BLE001 — any failure degrades to heuristics
+        log(f"classify {host}: {type(exc).__name__}: {str(exc)[:300]}")
         return [], type(exc).__name__
 
     if getattr(response, "stop_reason", None) == "refusal":
@@ -357,10 +386,18 @@ def handle(msg, cfg):
     reply = {"id": msg.get("id"), "block": []}
 
     if op == "status":
+        last_error = ""
+        if LOG_PATH.is_file():
+            try:
+                lines = [l for l in LOG_PATH.read_text().splitlines() if l.strip()]
+                last_error = lines[-1] if lines else ""
+            except OSError:
+                pass
         reply.update(
             ai_ready=have_credentials(),
             model=cfg["model"],
             cached_sites=len(list(RULES_DIR.glob("*.json"))) if RULES_DIR.is_dir() else 0,
+            last_error=last_error,
         )
         return reply
 
@@ -375,7 +412,9 @@ def handle(msg, cfg):
         return reply
 
     if op == "rules":
-        reply["block"] = read_cache(host, cfg["cache_days"]) or []
+        cached = read_cache(host, cfg["cache_days"]) or {"block": [], "asked": []}
+        reply["block"] = cached["block"]
+        reply["asked"] = cached["asked"]
         reply["source"] = "cache"
         return reply
 
@@ -415,10 +454,38 @@ def handle(msg, cfg):
             "Re-run install.sh to rebuild the virtualenv.",
             "critical",
         )
-    if block:
-        reply["block"] = merge_cache(host, block, cfg["model"], cfg["cache_days"])
+
+    if status == "ok":
+        # Record the whole batch as asked, not just the ones that came back as
+        # ads — a "leave this alone" is the more valuable half of the answer,
+        # because it is the one that would otherwise be re-asked forever.
+        asked = [c["selector"] for c in candidates]
+        reply["block"], reply["asked"] = merge_cache(
+            host, block, asked, cfg["model"], cfg["cache_days"]
+        )
+    elif status != "ok":
+        log(f"classify {host}: {status}")
+
     reply["source"] = status
     return reply
+
+
+def respond(msg, cfg):
+    """One request, one reply — even when handling it blows up.
+
+    A worker that dies without writing anything leaves the extension waiting out
+    its full timeout with nothing to show for it, so the failure has to come back
+    as a message and go to the log where someone can find it.
+    """
+    try:
+        reply = handle(msg, cfg)
+    except Exception as exc:  # noqa: BLE001
+        log(f"handle {msg.get('op')}: {type(exc).__name__}: {str(exc)[:300]}")
+        reply = {"id": msg.get("id"), "block": [], "error": "internal"}
+    try:
+        send_message(reply)
+    except (BrokenPipeError, OSError):
+        pass
 
 
 def main():
@@ -433,9 +500,7 @@ def main():
             break
         if not msg:
             continue
-        t = threading.Thread(
-            target=lambda m=msg: send_message(handle(m, cfg)), daemon=True
-        )
+        t = threading.Thread(target=respond, args=(msg, cfg), daemon=True)
         t.start()
         workers.append(t)
         workers = [w for w in workers if w.is_alive()]

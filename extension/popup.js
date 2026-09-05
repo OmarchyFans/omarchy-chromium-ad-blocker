@@ -33,9 +33,16 @@ chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
       $("status").textContent = "Native host not reachable — run install.sh.";
       return;
     }
-    $("status").textContent = reply.ai_ready
-      ? `Claude ready · ${reply.model} · ${reply.cached_sites} sites learned`
-      : "No API key — heuristics only. See the README to enable Claude.";
+    if (!reply.ai_ready) {
+      $("status").textContent = "No API key — heuristics only. See the README to enable Claude.";
+    } else if (reply.last_error) {
+      // Better a visible complaint than an AI pass that is quietly doing nothing.
+      $("status").textContent = `Claude ready · ${reply.model} · last error: ` +
+        reply.last_error.split("  ").pop();
+    } else {
+      $("status").textContent =
+        `Claude ready · ${reply.model} · ${reply.cached_sites} sites learned`;
+    }
   });
 
   // Any switch change needs a reload to take effect: the layers that matter run

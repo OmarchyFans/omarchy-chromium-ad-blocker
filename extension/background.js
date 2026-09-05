@@ -18,7 +18,16 @@ const pending = new Map();
 // Rules already fetched this browser session, so a second tab on the same site
 // costs nothing at all.
 const memCache = new Map();
+const askedCache = new Map();
 const blockedCounts = new Map();
+
+// Mirror a site's rules into extension storage. The content script reads this in
+// the same storage call it already makes at document_start, so a known site is
+// blocked before first paint instead of after a round trip to the host.
+function mirror(host, block) {
+  chrome.storage.local.set({ ["rules:" + host]: block },
+    () => void chrome.runtime.lastError);
+}
 
 function connect() {
   if (port) return port;
@@ -87,13 +96,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "rules") {
     const cached = memCache.get(msg.host);
     if (cached) {
-      sendResponse({ block: cached });
+      sendResponse({ block: cached, asked: askedCache.get(msg.host) || [] });
       return false;
     }
     ask({ op: "rules", host: msg.host }).then((reply) => {
       const block = Array.isArray(reply.block) ? reply.block : [];
+      const asked = Array.isArray(reply.asked) ? reply.asked : [];
       memCache.set(msg.host, block);
-      sendResponse({ block });
+      askedCache.set(msg.host, asked);
+      mirror(msg.host, block);
+      sendResponse({ block, asked });
     });
     return true;
   }
@@ -102,15 +114,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     ask({
       op: "classify",
       host: msg.host,
-      url: msg.url,
       candidates: msg.candidates,
     }).then((reply) => {
       const block = Array.isArray(reply.block) ? reply.block : [];
+      const asked = Array.isArray(reply.asked) ? reply.asked : [];
       if (block.length) {
-        const merged = new Set([...(memCache.get(msg.host) || []), ...block]);
-        memCache.set(msg.host, [...merged]);
+        const merged = [...new Set([...(memCache.get(msg.host) || []), ...block])];
+        memCache.set(msg.host, merged);
+        mirror(msg.host, merged);
       }
-      sendResponse({ block });
+      if (asked.length) askedCache.set(msg.host, asked);
+      sendResponse({ block, asked });
     });
     return true;
   }
@@ -129,6 +143,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.type === "forget") {
     memCache.delete(msg.host);
+    askedCache.delete(msg.host);
+    chrome.storage.local.remove("rules:" + msg.host,
+      () => void chrome.runtime.lastError);
     ask({ op: "forget", host: msg.host }).then(sendResponse);
     return true;
   }

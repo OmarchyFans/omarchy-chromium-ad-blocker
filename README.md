@@ -14,10 +14,14 @@ Three layers run in order, cheapest first. Nothing waits on the layer behind it.
 | **3. Claude** | Whatever the first two were unsure about | one API call per site, then cached |
 
 Layer 3 is the interesting one, and it is also the one that runs least. A site is
-classified **once**; the selectors come back, get written to
-`~/.local/share/omarchy-adblock/rules/<host>.json`, and every later visit applies
-them from disk at `document_start` — before the page paints. The blocker learns a
-site the first time you visit it and is instant forever after.
+classified **once**. The verdicts are written to
+`~/.local/share/omarchy-adblock/rules/<host>.json` and mirrored into extension
+storage, which the content script reads at `document_start` — so on every later
+visit the rules are applied before the page paints, with no round trip at all.
+
+Both halves of the answer are cached. "This sticky bar is an ad" becomes a rule;
+"this sticky bar is your nav" is remembered too, so a site with one legitimate
+fixed header does not cost an API call on every page load forever.
 
 Layers 1 and 2 work with no API key at all, and already handle most cookie walls.
 
@@ -62,7 +66,13 @@ omarchy-adblock sites            # every site with learned rules
 omarchy-adblock show nytimes.com # the rules learned for one site
 omarchy-adblock forget nytimes.com
 omarchy-adblock model claude-haiku-4-5
+omarchy-adblock log              # why the AI pass went quiet
 ```
+
+Chromium discards a native messaging host's stderr, so failures in layer 3 —
+a bad key, an expired credential, a network error — would otherwise be invisible.
+They go to `~/.local/share/omarchy-adblock/host.log`, and the most recent one
+shows up in both `omarchy-adblock status` and the popup.
 
 ## What leaves your machine
 
@@ -86,7 +96,15 @@ The model's answer is not trusted on its own:
 
 - It may only return selectors it was **shown**. A selector it invented is dropped.
 - Page-blanking selectors (`body`, `div`, `*`, `main`, …) are rejected outright.
+- Only selectors that match exactly one element are ever cached. A positional
+  one (`:nth-child(4)`) is used to hide something now but never stored — it means
+  a different element on the next page of the same site.
+- Cached rules are re-checked against the live DOM once it exists. A rule that
+  turns out to cover a login form, or to match a suspicious number of elements,
+  is pulled back out of the stylesheet and the site is re-learned from scratch.
 - Elements wrapping a `password` or credit-card field are never hidden, at any layer.
+- Heuristic hits are hidden inline rather than by a rule, so a class-based match
+  on one overlay cannot also hide a modal the user opens on purpose later.
 - Known app hosts (Google Docs, Figma, Slack, GitHub, YouTube …) skip the
   heuristics entirely, because there an overlay is usually the app.
 - When a modal is removed, the scroll lock it left on `<body>` is released — a
