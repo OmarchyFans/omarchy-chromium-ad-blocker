@@ -25,10 +25,11 @@ RULES_DIR = DATA_DIR / "rules"
 LOG_PATH = DATA_DIR / "host.log"
 
 DEFAULTS = {
-    # Opus 5 is the default because it is the model Omarchy's agent defaults to
-    # and it reads ambiguous layouts best. Set "model" to "claude-haiku-4-5" in
-    # config.json for a cheaper, faster pass — the schema is the same.
-    "model": "claude-opus-5",
+    # The cheapest current model, and the job suits it: a small, tightly
+    # schema'd classification over a couple of dozen short structural records,
+    # answered once per site and then cached. Any model in the table below works
+    # — set "model" in config.json and the request adapts to what it supports.
+    "model": "claude-haiku-4-5",
     "effort": "low",
     "cache_days": 30,
     "max_candidates": 25,
@@ -49,6 +50,29 @@ FORBIDDEN_SELECTORS = {
     "nav", "header", "footer", "form", "a", "p", "ul", "li", "img", "table",
     "body *", "html *", ":root",
 }
+
+# Not every model takes the same request. `effort` is rejected outright by Haiku
+# 4.5 and Sonnet 4.5, and the server-side refusal fallback only exists on the
+# models that can return stop_reason "refusal" in the first place — so both are
+# sent only where they mean something rather than assumed and swallowed by the
+# error path. An unlisted model is sent the plain request, which every model
+# accepts.
+MODEL_FEATURES = {
+    "claude-haiku-4-5": set(),
+    "claude-sonnet-4-6": {"effort"},
+    "claude-sonnet-5": {"effort"},
+    "claude-opus-4-6": {"effort"},
+    "claude-opus-4-7": {"effort", "fallbacks"},
+    "claude-opus-4-8": {"effort", "fallbacks"},
+    "claude-opus-5": {"effort", "fallbacks"},
+    "claude-fable-5": {"effort", "fallbacks"},
+    "claude-fable-5-1": {"effort", "fallbacks"},
+}
+
+
+def model_supports(model, feature):
+    return feature in MODEL_FEATURES.get(model, set())
+
 
 SYSTEM_PROMPT = """\
 You decide which page elements are advertising or interruptions, and which are \
@@ -336,6 +360,24 @@ def classify(host, candidates, cfg, api_key):
     user_content = json.dumps(
         {"site": host, "candidates": candidates}, separators=(",", ":")
     )
+    model = cfg["model"]
+
+    output_config = {"format": {"type": "json_schema", "schema": RESPONSE_SCHEMA}}
+    if model_supports(model, "effort"):
+        output_config["effort"] = cfg["effort"]
+
+    params = {
+        "model": model,
+        "max_tokens": 2000,
+        "system": SYSTEM_PROMPT,
+        "messages": [{"role": "user", "content": user_content}],
+        "output_config": output_config,
+    }
+    if model_supports(model, "fallbacks"):
+        # A refusal would otherwise return a 200 with no usable content and leave
+        # the page un-blocked for no visible reason.
+        params["betas"] = ["server-side-fallback-2026-07-01"]
+        params["fallbacks"] = "default"
 
     try:
         # An explicit key wins; without one the SDK resolves the `ant auth login`
@@ -347,20 +389,7 @@ def classify(host, candidates, cfg, api_key):
             if api_key
             else anthropic.Anthropic(timeout=25.0, max_retries=1)
         )
-        response = client.beta.messages.create(
-            model=cfg["model"],
-            max_tokens=2000,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_content}],
-            output_config={
-                "effort": cfg["effort"],
-                "format": {"type": "json_schema", "schema": RESPONSE_SCHEMA},
-            },
-            # A refusal here would otherwise return a 200 with no usable content
-            # and leave the page un-blocked for no visible reason.
-            betas=["server-side-fallback-2026-07-01"],
-            fallbacks="default",
-        )
+        response = client.beta.messages.create(**params)
     except Exception as exc:  # noqa: BLE001 — any failure degrades to heuristics
         log(f"classify {host}: {type(exc).__name__}: {str(exc)[:300]}")
         return [], type(exc).__name__

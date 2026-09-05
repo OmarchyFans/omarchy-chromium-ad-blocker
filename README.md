@@ -117,18 +117,23 @@ The model's answer is not trusted on its own:
 
 ```json
 {
-  "model": "claude-opus-5",
+  "model": "claude-haiku-4-5",
   "effort": "low",
   "cache_days": 30,
   "max_candidates": 25
 }
 ```
 
-`claude-opus-5` is the default because it reads ambiguous layouts best and it is
-what Omarchy's own agent defaults to. `claude-haiku-4-5` is markedly cheaper and
-faster and is a reasonable trade for this job — the call is a small structured
-classification, and the result is cached either way. Switch with
-`omarchy-adblock model claude-haiku-4-5`.
+`claude-haiku-4-5` is the default: the cheapest current model, and the job suits
+it — a small, tightly schema'd classification over a couple of dozen short
+structural records, answered once per site and then cached. A busy week of
+browsing is cents.
+
+Any model works; `omarchy-adblock model claude-opus-5` will read genuinely
+ambiguous layouts better if you hit a site the default gets wrong. The request
+adapts to what the model supports — `effort` is rejected outright by Haiku 4.5,
+and the server-side refusal fallback only exists on models that can refuse — so
+switching models is a one-word change and nothing else.
 
 The API key lives in `~/.config/omarchy-adblock/env` (mode 600). It is read from
 a file rather than the environment because Chromium launches the native host

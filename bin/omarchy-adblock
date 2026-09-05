@@ -19,7 +19,7 @@ Usage: omarchy-adblock <command>
   forget-all        Throw away every learned rule
   log [n]           Last n lines of the host error log
   key <api-key>     Store the Anthropic API key
-  model <id>        Set the model (e.g. claude-haiku-4-5 for a cheaper pass)
+  model <id>        Set the model (default claude-haiku-4-5)
   restart           Fully restart Chromium so changes take effect
 USAGE
 }

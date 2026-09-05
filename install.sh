@@ -94,7 +94,7 @@ fi
 if [[ ! -f "$CONFIG_DIR/config.json" ]]; then
   cat >"$CONFIG_DIR/config.json" <<'CFGEOF'
 {
-  "model": "claude-opus-5",
+  "model": "claude-haiku-4-5",
   "effort": "low",
   "cache_days": 30,
   "max_candidates": 25
