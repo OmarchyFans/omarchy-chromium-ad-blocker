@@ -85,8 +85,9 @@ An ad blocker that uploads your browsing would be a worse deal than the ads. So:
   from a nav bar.
 - **Most pages send nothing at all.** Layers 1 and 2 resolve the common cases
   locally, and a site that has been classified once never sends again.
-- `localhost`, `127.0.0.1` and anything in `never_send` are excluded in the host
-  itself, not just in the browser.
+- Private networks never leave the machine: `localhost`, RFC1918 addresses,
+  single-label names (`nas`, `router`) and `.local` / `.lan` / `.internal` /
+  `.home.arpa` are excluded in the host itself, not just in the browser.
 - Sites in the popup's allowlist are skipped before any layer runs.
 - Nothing is sent when no API key is configured.
 

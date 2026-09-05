@@ -32,8 +32,12 @@ DEFAULTS = {
     "effort": "low",
     "cache_days": 30,
     "max_candidates": 25,
-    # Hosts that never leave the machine, whatever the extension asks.
+    # Hosts that never leave the machine, whatever the extension asks. A
+    # homelab dashboard is exactly the kind of page with a fixed panel the AI
+    # pass would want to ask about, and exactly the kind that should not be
+    # described to anyone.
     "never_send": ["localhost", "127.0.0.1", "0.0.0.0", "::1"],
+    "never_send_suffixes": [".local", ".lan", ".internal", ".home.arpa", ".test"],
 }
 
 CACHE_VERSION = 1
@@ -201,6 +205,22 @@ def safe_host(host):
     if not isinstance(host, str) or not HOST_RE.match(host) or ".." in host:
         return None
     return host.lower()
+
+
+# 10/8, 172.16/12 and 192.168/16, plus loopback — matched as text because the
+# hostname is all we have and a private address is never worth describing.
+PRIVATE_IP_RE = re.compile(
+    r"^(10\.|127\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)"
+)
+
+
+def is_private(host, cfg):
+    if any(host == n or host.endswith("." + n) for n in cfg["never_send"]):
+        return True
+    if any(host.endswith(sfx) for sfx in cfg.get("never_send_suffixes", [])):
+        return True
+    # A single-label name ("nas", "router") only ever resolves on a local network.
+    return bool(PRIVATE_IP_RE.match(host)) or "." not in host
 
 
 def cache_path(host):
@@ -422,7 +442,7 @@ def handle(msg, cfg):
         reply["error"] = "bad-op"
         return reply
 
-    if any(host == n or host.endswith("." + n) for n in cfg["never_send"]):
+    if is_private(host, cfg):
         reply["error"] = "host-excluded"
         return reply
 

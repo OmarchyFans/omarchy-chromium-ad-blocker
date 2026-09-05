@@ -24,6 +24,10 @@
   const remoteSelectors = new Set();  // the subset that came from cache or the model
   const alreadyAsked = new Set();     // candidates the model has already ruled on
   const pendingCandidates = new Set();
+  // Elements already settled. A WeakSet rather than a data- attribute: on a large
+  // app that would be thousands of attribute writes, visible to the page's own
+  // CSS and scripts, where this is invisible and collected with the nodes.
+  const settled = new WeakSet();
 
   // ---------------------------------------------------------------- utilities
 
@@ -91,18 +95,32 @@
   // to cover the login form or the article body is pulled back out, and the site
   // is re-learned rather than left with a rule that breaks it on every visit.
   const auditRemoteRules = () => {
-    const bad = [];
+    const wrong = [];   // the rule itself is bad — unlearn the site
+    const tooWide = []; // the rule is probably fine, this page just has many
     for (const sel of remoteSelectors) {
       let nodes;
       try { nodes = document.querySelectorAll(sel); } catch { continue; }
       if (!nodes.length) continue;
-      if (nodes.length > 8 || [...nodes].some(isProtected)) bad.push(sel);
+      if ([...nodes].some(isProtected)) wrong.push(sel);
+      else if (nodes.length > 8) tooWide.push(sel);
     }
-    if (!bad.length) return;
-    bad.forEach((s) => { hiddenSelectors.delete(s); remoteSelectors.delete(s); });
+    if (!wrong.length && !tooWide.length) return;
+
+    // A rule learned from one ad slot on an article page can match fifteen on
+    // the same site's homepage. Skipping it here is right; forgetting the whole
+    // site over it would put the blocker in a loop, unlearning on every visit to
+    // the busy page and never re-learning it, because a fifteen-match selector
+    // is not one this page would offer up as a candidate either.
+    [...wrong, ...tooWide].forEach((sel) => {
+      hiddenSelectors.delete(sel);
+      remoteSelectors.delete(sel);
+    });
     rebuildStyle();
-    chrome.runtime.sendMessage({ type: "forget", host: HOST },
-      () => void chrome.runtime.lastError);
+
+    if (wrong.length) {
+      chrome.runtime.sendMessage({ type: "forget", host: HOST },
+        () => void chrome.runtime.lastError);
+    }
   };
 
   // Remote rules can land before the DOM exists (from the storage mirror) or
@@ -244,13 +262,20 @@
     let hidAny = false;
 
     for (const el of document.querySelectorAll("body *")) {
-      if (el.dataset.omarchyAdblockSeen) continue;
+      if (settled.has(el)) continue;
       const cs = getComputedStyle(el);
-      if (cs.position !== "fixed" && cs.position !== "sticky") continue;
+      if (cs.position !== "fixed" && cs.position !== "sticky") {
+        // Settle it here. Leaving a static element unmarked means re-reading its
+        // computed style on every pass — thousands of forced style recalcs every
+        // 400ms on a large app. What that costs is a div that JS later makes
+        // fixed, which is sticky-on-scroll navigation, not an ad.
+        settled.add(el);
+        continue;
+      }
 
       const verdict = skipHeuristics ? "ok" : classify(el);
       if (verdict === null) continue; // not settled yet — look again on the next pass
-      el.dataset.omarchyAdblockSeen = "1";
+      settled.add(el);
 
       if (verdict === "hide") {
         if (hideElement(el)) hidAny = true;
