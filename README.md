@@ -129,7 +129,8 @@ Nothing, on the default backend. On either backend:
 ## The chord
 
 **Ctrl+Alt** to preview, **Delete** to commit, **P** to pick one by hand, **Esc**
-or releasing either modifier to cancel. It is clear of everything that matters:
+or releasing either modifier to cancel. Delete only, not Backspace: Ctrl+Alt+
+Backspace is the kill-the-session chord on some setups. It is clear of everything that matters:
 Chromium keeps Ctrl+Shift+Delete for clearing browsing data and the page never
 sees it, Alt+Shift is a keyboard-layout toggle on many setups, and every Omarchy
 Hyprland binding leads with SUPER.

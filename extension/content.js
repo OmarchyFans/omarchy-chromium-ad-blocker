@@ -430,7 +430,11 @@
     if (hud) { hud.remove(); hud = null; }
   };
 
-  const litElements = () => [...markedEls.keys()].filter((el) => el.isConnected);
+  // Already-removed marks are not offered again: pressing the chord twice on the
+  // same page would otherwise report the same count for things that are gone.
+  const litElements = () => [...markedEls.keys()].filter(
+    (el) => el.isConnected && getComputedStyle(el).display !== "none"
+  );
 
   const refreshChordOutlines = () => {
     for (const el of litElements()) el.classList.add("omarchy-ad-lit");
@@ -494,6 +498,11 @@
   let pickerOverlay = null;
   let pickTarget = null;
   let pickDepth = 0;
+  // The arrow keys widen the selection without the mouse moving, so the last
+  // cursor position has to be remembered: re-resolving from pickTarget instead
+  // let pickDepth drift out of step with what was on screen, and the next
+  // mousemove jumped somewhere unrelated.
+  let pickPos = { x: 0, y: 0 };
 
   const outlinePick = (el) => {
     if (pickTarget) pickTarget.classList.remove("omarchy-ad-lit");
@@ -539,6 +548,7 @@
     showHud(`Point at an ad · <span class="k">click</span> remove · <span class="k">Esc</span> cancel`);
 
     pickerOverlay.addEventListener("mousemove", (e) => {
+      pickPos = { x: e.clientX, y: e.clientY };
       outlinePick(elementUnder(e.clientX, e.clientY));
     });
     pickerOverlay.addEventListener("click", (e) => {
@@ -548,9 +558,15 @@
     });
     pickerOverlay.addEventListener("wheel", (e) => {
       e.preventDefault();
-      pickDepth = Math.max(0, pickDepth + (e.deltaY > 0 ? 1 : -1));
-      outlinePick(elementUnder(e.clientX, e.clientY));
+      pickPos = { x: e.clientX, y: e.clientY };
+      stepDepth(e.deltaY > 0 ? 1 : -1);
     }, { passive: false });
+  };
+
+  // One way to change depth, so the keys and the wheel cannot disagree.
+  const stepDepth = (delta) => {
+    pickDepth = Math.max(0, pickDepth + delta);
+    outlinePick(elementUnder(pickPos.x, pickPos.y));
   };
 
   const exitPicker = () => {
@@ -612,14 +628,7 @@
       if (e.key === "Escape") { e.preventDefault(); exitPicker(); }
       else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
         e.preventDefault();
-        pickDepth = Math.max(0, pickDepth + (e.key === "ArrowUp" ? 1 : -1));
-        // Re-resolve from the element we are on rather than a cursor position
-        // we do not have, so the keys work without moving the mouse.
-        let el = pickTarget;
-        if (e.key === "ArrowUp" && el && el.parentElement &&
-            el.parentElement !== document.body) outlinePick(el.parentElement);
-        else if (e.key === "ArrowDown" && el && el.firstElementChild)
-          outlinePick(el.firstElementChild);
+        stepDepth(e.key === "ArrowUp" ? 1 : -1);
       }
       return;
     }
@@ -634,7 +643,9 @@
     }
     if (!chordActive) return;
 
-    if (e.key === "Delete" || e.key === "Backspace") {
+    // Delete only, deliberately. Ctrl+Alt+Backspace is the kill-the-session
+    // chord on some setups, and this is not a key to train people to press.
+    if (e.key === "Delete") {
       e.preventDefault();
       commitFromChord();
     } else if (e.key === "p" || e.key === "P") {

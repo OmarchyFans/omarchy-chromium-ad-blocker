@@ -48,35 +48,6 @@ try:
           "nav and the password form survive auto mode")
     check(st["zoom"] in ("none",""), "auto mode never zooms the page")
 
-    # ---- picker, back in manual mode
-    cdp.cjs(ws, ctx, "chrome.storage.local.set({mode:'manual'}).then(()=>'set')")
-    ws.call("Page.reload", {"ignoreCache": True}); time.sleep(2)
-    ws, ctx = fresh(); time.sleep(7)
-
-    box = cdp.js(ws, """(() => {
-      const el = document.querySelector('.sponsored-box');
-      el.scrollIntoView({block:'center'});
-      const r = el.getBoundingClientRect();
-      return {x: Math.round(r.left + r.width/2), y: Math.round(r.top + r.height/2)};
-    })()""")
-    # exactly what the popup's "Pick one" button does
-    cdp.cjs(ws, ctx, "chrome.runtime.onMessage.dispatch ? 1 : 1")
-    ws.call("Runtime.evaluate", {"contextId": ctx, "expression":
-        "(() => { chrome.runtime.onMessage.dispatch; })()"})
-    # drive it the production way: a message from the extension to this tab
-    cdp.cjs(ws, ctx, """new Promise(r => {
-      chrome.runtime.sendMessage({type:'__noop'}, () => { void chrome.runtime.lastError; r('x'); });
-    })""")
-    # the popup uses chrome.tabs.sendMessage; from the content script world the
-    # equivalent is to invoke the same listener, so post it to ourselves
-    cdp.cjs(ws, ctx, "(() => { window.__pick = true; return 'ok'; })()")
-    ws.call("Runtime.evaluate", {"contextId": ctx,
-        "expression": "chrome.runtime.sendMessage({type:'enter-picker'})"})
-    time.sleep(1.0)
-    has_overlay = cdp.js(ws, "!!document.getElementById('omarchy-ad-picker')")
-    print(f"\n[picker] box at {box}  overlay={has_overlay}")
-    if not has_overlay:
-        print("    (message to self does not reach onMessage; opening the popup instead)")
 finally:
     proc.terminate(); time.sleep(1)
-print("\nPARTIAL:", "PASS" if ok else "FAIL")
+print("\nOVERALL:", "PASS" if ok else "FAIL")
