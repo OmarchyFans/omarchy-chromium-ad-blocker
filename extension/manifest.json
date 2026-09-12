@@ -1,16 +1,31 @@
 {
   "manifest_version": 3,
-  "name": "Omarchy Ad Blocker (AI)",
-  "version": "1.0",
+  "name": "Omarchy Chromium Ad Blocker",
+  "version": "2.0",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAttC8DRm6sFP+oZYGsW3qJJPjzGZlrRFIXu8EVwUTmh4cxfArrT+iuYuhYbSPSS/qiGOLDc6rAru8FCOeH3zgWtB7DO/5k0c9rt7PUd2CEZ5Kv/REPBDN7UrCwci1xVJMscprwpW0bGY0gFxUVhnZp9VhUUxfhaokSagkQyC/W4cPDTfxFVMc+TGFiMYcy7H+dYz/adJCwfTlm/Qmj41Tj33JYXDeuBdbFk81v8ZZr8E+f2R0De7Hmmgcr0AX19trAxogPlm54woitB1lpIahtZrvTwKHfeu1vzMjwlezcFpadPX7gevpPROejPMRPr45wMjD8P47RrLKUczcTG0X6wIDAQAB",
-  "description": "Removes ads, cookie walls and popup overlays. Static rules and DOM heuristics run instantly; Claude classifies whatever is left and the answer is cached per site.",
-  "permissions": ["nativeMessaging", "storage", "scripting", "activeTab"],
-  "host_permissions": ["<all_urls>"],
-  "background": { "service_worker": "background.js" },
+  "description": "Removes ads, cookie walls and popup overlays. Static rules and DOM heuristics run instantly; a model on your own GPU classifies what is left, and every verdict is cached per site.",
+  "permissions": [
+    "nativeMessaging",
+    "storage",
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
-      "matches": ["http://*/*", "https://*/*"],
-      "js": ["rules.js", "content.js"],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "rules.js",
+        "content.js"
+      ],
       "run_at": "document_start",
       "all_frames": false
     }
@@ -18,7 +33,11 @@
   "action": {
     "default_title": "Omarchy Ad Blocker",
     "default_popup": "popup.html",
-    "default_icon": { "128": "icons/icon128.png" }
+    "default_icon": {
+      "128": "icons/icon128.png"
+    }
   },
-  "icons": { "128": "icons/icon128.png" }
+  "icons": {
+    "128": "icons/icon128.png"
+  }
 }

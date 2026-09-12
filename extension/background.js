@@ -19,14 +19,17 @@ const pending = new Map();
 // costs nothing at all.
 const memCache = new Map();
 const askedCache = new Map();
-const blockedCounts = new Map();
+const userCache = new Map();
+const foundCounts = new Map();
 
 // Mirror a site's rules into extension storage. The content script reads this in
 // the same storage call it already makes at document_start, so a known site is
 // blocked before first paint instead of after a round trip to the host.
-function mirror(host, block) {
-  chrome.storage.local.set({ ["rules:" + host]: block },
-    () => void chrome.runtime.lastError);
+function mirror(host, block, user) {
+  const patch = {};
+  if (block) patch["rules:" + host] = block;
+  if (user) patch["user:" + host] = user;
+  chrome.storage.local.set(patch, () => void chrome.runtime.lastError);
 }
 
 function connect() {
@@ -84,10 +87,15 @@ function ask(payload) {
   });
 }
 
-function setBadge(tabId, n) {
+function setBadge(tabId, n, mode) {
   if (!tabId) return;
   chrome.action.setBadgeText({ tabId, text: n ? String(n) : "" });
-  chrome.action.setBadgeBackgroundColor({ tabId, color: "#4a4a4a" });
+  // Amber while they are only marked and waiting for the chord; grey once
+  // removing them is automatic and the number is just a tally.
+  chrome.action.setBadgeBackgroundColor({
+    tabId,
+    color: mode === "auto" ? "#4a4a4a" : "#b26a00",
+  });
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -96,16 +104,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "rules") {
     const cached = memCache.get(msg.host);
     if (cached) {
-      sendResponse({ block: cached, asked: askedCache.get(msg.host) || [] });
+      sendResponse({
+        block: cached,
+        asked: askedCache.get(msg.host) || [],
+        user: userCache.get(msg.host) || [],
+      });
       return false;
     }
     ask({ op: "rules", host: msg.host }).then((reply) => {
       const block = Array.isArray(reply.block) ? reply.block : [];
       const asked = Array.isArray(reply.asked) ? reply.asked : [];
+      const user = Array.isArray(reply.user) ? reply.user : [];
       memCache.set(msg.host, block);
       askedCache.set(msg.host, asked);
-      mirror(msg.host, block);
-      sendResponse({ block, asked });
+      userCache.set(msg.host, user);
+      mirror(msg.host, block, user);
+      sendResponse({ block, asked, user });
     });
     return true;
   }
@@ -129,11 +143,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  if (msg.type === "blocked") {
-    const n = (blockedCounts.get(tabId) || 0) + (msg.count || 0);
-    blockedCounts.set(tabId, n);
-    setBadge(tabId, n);
+  // The badge counts what was *found*, which in auto mode is also what was
+  // removed. In manual mode it is the standing offer: this many are waiting.
+  if (msg.type === "found") {
+    foundCounts.set(tabId, msg.count || 0);
+    setBadge(tabId, msg.count || 0, msg.mode);
     return false;
+  }
+
+  if (msg.type === "learn") {
+    ask({ op: "learn", host: msg.host, selector: msg.selector }).then((reply) => {
+      const user = Array.isArray(reply.user) ? reply.user : [];
+      userCache.set(msg.host, user);
+      mirror(msg.host, null, user);
+      sendResponse({ user });
+    });
+    return true;
   }
 
   if (msg.type === "status") {
@@ -153,10 +178,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   return false;
 });
 
-chrome.tabs.onRemoved.addListener((tabId) => blockedCounts.delete(tabId));
+chrome.tabs.onRemoved.addListener((tabId) => foundCounts.delete(tabId));
 chrome.tabs.onUpdated.addListener((tabId, info) => {
   if (info.status === "loading") {
-    blockedCounts.delete(tabId);
+    foundCounts.delete(tabId);
     setBadge(tabId, 0);
   }
 });
