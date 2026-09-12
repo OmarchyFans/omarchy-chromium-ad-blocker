@@ -56,7 +56,8 @@ try:
     sw = cdp.attach_type(PORT, "service_worker")
     rulesets = cdp.ajs(sw, "chrome.declarativeNetRequest.getEnabledRulesets()")
     print("tracker ruleset enabled:", rulesets)
-    check(rulesets == ["trackers"], "turning on opt-in 2 switches the tracker rules on")
+    check(sorted(rulesets) == ["gpc", "trackers"],
+          "turning on opt-in 2 switches the tracker rules and the GPC header on")
 
     print("\n[known platform: OneTrust]")
     ws = goto(ws, "consent-onetrust.html", 6)
@@ -115,6 +116,39 @@ try:
           "the signup form and its agreement checkbox are untouched")
     check(st["footer"], "the site's own sticky footer of legal links stays")
     check(st["checked"] is False, "and nothing ticked or unticked the checkbox on the person's behalf")
+
+    print("\n[legal modal that freezes the page, the cnn.com shape]")
+    ws = goto(ws, "legal-lock.html", 7)
+    st = cdp.js(ws, """(() => {
+        const m = document.getElementById('legalmodal');
+        const shown = !!m && getComputedStyle(m).display !== 'none' &&
+          getComputedStyle(document.getElementById('legalpanel')).display !== 'none';
+        const restored = scrollY;
+        scrollTo(0, 2000);
+        return {shown, restored, scrolled: scrollY, agreed: document.documentElement.dataset.agreed || 'no',
+                bodyPosition: getComputedStyle(document.body).position}; })()""")
+    print("   ", st)
+    check(not st["shown"], "the legal modal is removed")
+    check(st["agreed"] == "no", "and Agree was never clicked")
+    check(st["scrolled"] == 2000 and st["bodyPosition"] != "fixed",
+          "the page scrolls again, even after the site re-applied its lock")
+    check(st["restored"] == 600, "and it is back where the site froze it")
+
+    print("\n[Global Privacy Control]")
+    st = cdp.js(ws, "navigator.globalPrivacyControl")
+    hdr = cdp.ajs(ws, "fetch('/gpc').then(r => r.text())")
+    print("    navigator:", st, " header:", hdr)
+    check(st is True, "pages that ask navigator.globalPrivacyControl are told yes")
+    check(hdr == "1", "and every request carries Sec-GPC: 1")
+    cdp.cjs(ws, cdp.isolated_context(ws), "chrome.storage.local.set({cookies:false}).then(()=>1)")
+    time.sleep(1.5)
+    ws = goto(ws, "legal-lock.html", 1)
+    st = cdp.js(ws, "navigator.globalPrivacyControl")
+    hdr = cdp.ajs(ws, "fetch('/gpc').then(r => r.text())")
+    print("    opt-in 2 off -> navigator:", st, " header:", hdr)
+    check(st is not True and hdr == "none", "and with opt-in 2 off, neither is sent")
+    cdp.cjs(ws, cdp.isolated_context(ws), "chrome.storage.local.set({cookies:true}).then(()=>1)")
+    time.sleep(1.5)
 
     print("\n[the numbers]")
     time.sleep(2.5)

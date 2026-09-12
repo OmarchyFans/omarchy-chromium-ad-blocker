@@ -21,6 +21,9 @@ class H(http.server.BaseHTTPRequestHandler):
         if path.startswith("slow"):
             time.sleep(6)
             return self.send(b"\x00", "image/gif")
+        if path == "gpc":
+            # Echo the Global Privacy Control header back to the page.
+            return self.send((self.headers.get("Sec-GPC") or "none").encode(), "text/plain")
         if path.endswith("tracker.js"):
             # If this ever runs, the network rules did not block it.
             return self.send(b"document.documentElement.dataset.trackerRan='yes';",

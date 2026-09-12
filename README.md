@@ -8,7 +8,7 @@ Three opt-ins, each independent:
 | | Default | What it does |
 |---|---|---|
 | **1. Block ads** | on, asks first | Ads, popups and overlays. Hold **Ctrl+Alt** to see them, **Delete** to remove them, or turn on automatic removal. |
-| **2. Block tracking cookies** | off | Declines consent dialogs, blocks third-party trackers, clears tracker cookies. |
+| **2. Block tracking cookies** | off | Declines consent dialogs, sends Global Privacy Control, blocks third-party trackers, clears tracker cookies. |
 | **3. Block legal popups** | off | Declines terms and privacy prompts that can be declined, and removes notices that offer no choice. |
 
 The popup shows what each has removed, for the current site and for all time.
@@ -38,9 +38,15 @@ page. Answering "no" is what actually stops it.
 - **No reject button on the first screen?** It opens the preferences, switches
   off every control the site lets you switch off, and saves. Controls the site
   has locked on are the strictly necessary ones, so they stay on.
-- **65 third-party tracker hosts** are blocked at the network level: analytics,
-  ad exchanges, social pixels. Third-party only, so a site measuring its own
-  pages keeps working.
+- **Global Privacy Control** is sent on every request (`Sec-GPC: 1`) and
+  answered to scripts that ask (`navigator.globalPrivacyControl`). It is the
+  legal "do not sell or share my data" signal, and consent platforms record it.
+  On cnn.com, OneTrust sets its sale, sharing and personalised-ads groups on
+  without it, and off with it.
+- **68 third-party tracker hosts** are blocked at the network level: analytics,
+  ad exchanges, social pixels, video beacons. Third-party only, so a site
+  measuring its own pages keeps working. A blocked request is counted once per
+  page, however often the page retries it.
 - **Tracker cookies are cleared by name** (`_ga`, `_fbp`, `_hj*` and so on),
   never every cookie for a site, which would sign you out.
 - **Blocking every third-party cookie** is a separate switch, off even when this
@@ -68,6 +74,13 @@ It declines what can be declined and removes notices that offer no choice, like
 It never removes an agreement checkbox from a form you are submitting. Hiding
 that checkbox hides the terms without unbinding you from them: the site binds
 you when you submit either way. Nothing inside a form is touched, by any opt-in.
+
+A legal modal with only an **Agree** button, like cnn.com's, is removed without
+clicking it. Sites freeze the page behind such a modal, so the lock goes too and
+the page scrolls again from where it was, even if the site re-applies it. No
+agreement is given, and no "agreed" cookie is forged: a forged one would tell
+the site's trackers they may run. Turn on opt-in 2 as well so the site also
+receives Global Privacy Control.
 
 ## Private browsing
 

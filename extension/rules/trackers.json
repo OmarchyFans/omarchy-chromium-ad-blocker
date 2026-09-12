@@ -843,5 +843,44 @@
    ],
    "domainType": "thirdParty"
   }
+ },
+ {
+  "id": 66,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "litix.io"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 67,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "mediamelon.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 68,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "optimizely.com"
+   ],
+   "domainType": "thirdParty"
+  }
  }
 ]

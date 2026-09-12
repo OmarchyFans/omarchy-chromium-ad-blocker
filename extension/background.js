@@ -211,10 +211,29 @@ async function applyPrivacySettings() {
   try {
     await chrome.declarativeNetRequest.updateEnabledRulesets(
       privacy.cookies
-        ? { enableRulesetIds: ["trackers"] }
-        : { disableRulesetIds: ["trackers"] }
+        ? { enableRulesetIds: ["trackers", "gpc"] }
+        : { disableRulesetIds: ["trackers", "gpc"] }
     );
   } catch (e) { /* ruleset already in that state */ }
+
+  // Global Privacy Control: the header above, plus navigator.globalPrivacyControl
+  // for scripts that ask the page rather than read the request. It has to run in
+  // the page's own world, so it is registered only while the opt-in is on.
+  try {
+    const have = await chrome.scripting.getRegisteredContentScripts({ ids: ["gpc"] });
+    if (privacy.cookies && !have.length) {
+      await chrome.scripting.registerContentScripts([{
+        id: "gpc",
+        js: ["gpc.js"],
+        matches: ["http://*/*", "https://*/*"],
+        runAt: "document_start",
+        allFrames: true,
+        world: "MAIN",
+      }]);
+    } else if (!privacy.cookies && have.length) {
+      await chrome.scripting.unregisterContentScripts({ ids: ["gpc"] });
+    }
+  } catch (e) { /* registration raced a second call; the next change settles it */ }
 
   // Only ever set while this extension controls it, and cleared when turned off,
   // so the browser's own setting comes back rather than being left forced.
@@ -269,12 +288,27 @@ async function sweepTrackerCookies(url) {
 // getMatchedRules allows only 20 calls per 10 minutes, and polling faster than
 // that exhausts the quota in minutes and then fails silently for good.
 const tabHosts = new Map();
+// A blocked request is counted once per page. Some players retry a blocked
+// config file in a loop, thousands of times a minute, and counting every retry
+// would turn one tracker into a meaningless five-digit number.
+const seenBlocked = new Map();
+chrome.tabs.onUpdated.addListener((tabId, info) => {
+  if (info.status === "loading" && info.url) seenBlocked.delete(tabId);
+});
+chrome.tabs.onRemoved.addListener((tabId) => { seenBlocked.delete(tabId); tabHosts.delete(tabId); });
 if (chrome.declarativeNetRequest.onRuleMatchedDebug) {
   const pending = new Map();
   let flushTimer = null;
   chrome.declarativeNetRequest.onRuleMatchedDebug.addListener((info) => {
     const tabId = info.request.tabId;
     if (tabId < 0) return;
+    // Only the tracker list counts; the GPC rule matches every request.
+    if (info.rule.rulesetId !== "trackers") return;
+    let seen = seenBlocked.get(tabId);
+    if (!seen) seenBlocked.set(tabId, (seen = new Set()));
+    const url = info.request.url.split("?")[0];
+    if (seen.has(url) || seen.size > 5000) return;
+    seen.add(url);
     pending.set(tabId, (pending.get(tabId) || 0) + 1);
     if (flushTimer) return;
     flushTimer = setTimeout(async () => {
@@ -300,6 +334,7 @@ async function countBlockedRequests() {
   const perTab = new Map();
   for (const m of info.rulesMatchedInfo || []) {
     lastMatchTs = Math.max(lastMatchTs, m.timeStamp);
+    if (m.rule.rulesetId !== "trackers") continue;
     perTab.set(m.tabId, (perTab.get(m.tabId) || 0) + 1);
   }
   for (const [tabId, n] of perTab) {

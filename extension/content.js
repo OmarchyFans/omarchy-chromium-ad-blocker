@@ -190,14 +190,8 @@
   // releasing the lock leaves a page that cannot scroll, which reads as a worse
   // bug than the popup itself.
   const releaseScrollLock = () => {
-    for (const el of [document.documentElement, document.body]) {
-      if (!el) continue;
-      const cs = getComputedStyle(el);
-      if (cs.overflow === "hidden" || cs.overflowY === "hidden" || cs.position === "fixed") {
-        el.style.setProperty("overflow", "auto", "important");
-        el.style.setProperty("position", "static", "important");
-      }
-    }
+    // Defined by consent.js, which runs first in this same isolated world.
+    if (globalThis.OMARCHY_UNLOCK_SCROLL) globalThis.OMARCHY_UNLOCK_SCROLL();
   };
 
   // A cached or model-supplied rule is plain CSS, so isProtected never gets to

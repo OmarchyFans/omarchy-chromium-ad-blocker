@@ -11,6 +11,58 @@
 //   2. Anything else that looks like a consent dialog, by button text.
 //   3. The local model, asked which of these buttons declines. Cached per site.
 
+// A modal locks the page behind it, and removing the modal without the lock
+// leaves a page that will not scroll. Sites lock in two ways: overflow:hidden on
+// html/body, or body{position:fixed; top:-<scrollY>px; height:<viewport>} so the
+// page cannot move at all. Both are undone here, the scroll position the site
+// stashed in "top" is restored, and for a while afterwards the lock is undone
+// again if the site's own script puts it back. Shared with content.js, which
+// runs in the same isolated world.
+globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
+  let watching = false;
+  const locked = (el) => {
+    const cs = getComputedStyle(el);
+    return cs.overflow === "hidden" || cs.overflowY === "hidden" ||
+      cs.overflow === "clip" || cs.position === "fixed";
+  };
+  const release = () => {
+    let restoreTo = null;
+    for (const el of [document.documentElement, document.body]) {
+      if (!el || !locked(el)) continue;
+      const cs = getComputedStyle(el);
+      if (cs.position === "fixed") {
+        const top = parseFloat(cs.top);
+        if (top < 0) restoreTo = -top;
+      }
+      // Visible on both lets the overflow propagate to the viewport, so the
+      // window scrolls again instead of body becoming a scroll box of its own.
+      el.style.setProperty("overflow", "visible", "important");
+      el.style.setProperty("overflow-y", "visible", "important");
+      el.style.setProperty("position", "static", "important");
+      for (const prop of ["top", "left", "right", "bottom", "height", "width"]) {
+        el.style.setProperty(prop, "auto", "important");
+      }
+      for (const prop of ["max-height", "max-width"]) {
+        el.style.setProperty(prop, "none", "important");
+      }
+      el.dataset.omarchyUnlocked = "1";
+    }
+    if (restoreTo !== null) window.scrollTo(0, restoreTo);
+  };
+  return () => {
+    release();
+    if (watching || !document.body) return;
+    watching = true;
+    const mo = new MutationObserver(() => {
+      if (locked(document.documentElement) || locked(document.body)) release();
+    });
+    const opts = { attributes: true, attributeFilter: ["style", "class"] };
+    mo.observe(document.documentElement, opts);
+    mo.observe(document.body, opts);
+    setTimeout(() => { mo.disconnect(); watching = false; }, 20000);
+  };
+})();
+
 (() => {
   const HOST = location.hostname;
   const TOP = window.top === window;
@@ -286,16 +338,8 @@
       el.style.setProperty("display", "none", "important");
       n++;
     }
-    if (n) {
-      // Whatever it locked behind itself comes back with it.
-      for (const el of [document.documentElement, document.body]) {
-        if (!el) continue;
-        const cs = getComputedStyle(el);
-        if (cs.overflow === "hidden" || cs.overflowY === "hidden") {
-          el.style.setProperty("overflow", "auto", "important");
-        }
-      }
-    }
+    // Whatever it locked behind itself comes back with it.
+    if (n && TOP) globalThis.OMARCHY_UNLOCK_SCROLL();
     return n;
   };
 

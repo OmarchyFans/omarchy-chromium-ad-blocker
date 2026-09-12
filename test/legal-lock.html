@@ -1,0 +1,30 @@
+<!doctype html><title>legal lock</title>
+<body style="margin:0;font:15px system-ui">
+<main>
+  <h1>News front page</h1>
+  <script>for (let i = 0; i < 200; i++) document.write(`<p>Story ${i}: long enough to scroll well past one screen.</p>`);</script>
+</main>
+<script>
+  // The shape cnn.com uses: a single-button legal modal, and the page frozen
+  // behind it with body position:fixed, an inline height, and the scroll
+  // position stashed in top.
+  const lock = () => {
+    document.documentElement.style.overflow = "hidden";
+    Object.assign(document.body.style, {position: "fixed", top: "-600px", width: "1280px",
+      height: "900px", overflow: "auto"});
+  };
+  window.addEventListener("load", () => {
+    const m = document.createElement("div");
+    m.id = "legalmodal";
+    m.style.cssText = "position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.6)";
+    m.innerHTML = `<div id="legalpanel" style="position:absolute;top:200px;left:400px;width:480px;padding:24px;background:#fff">
+      <h2>Legal Terms and Privacy</h2>
+      <p>We have updated our Terms of Use and Privacy Policy. By clicking Agree you accept them.</p>
+      <button id="agree" onclick="document.documentElement.dataset.agreed='yes'">Agree</button></div>`;
+    document.body.appendChild(m);
+    lock();
+    // And the site's own script puts the lock back once, a moment later.
+    setTimeout(lock, 3500);
+  });
+</script>
+</body>
