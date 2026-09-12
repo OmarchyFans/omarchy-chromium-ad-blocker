@@ -2,3 +2,5 @@
 __pycache__/
 # Chromium writes its compiled copy of the network rules here on load.
 extension/_metadata/
+# Test browser profiles. The tests put them under /tmp; this is a backstop.
+test/prof*/

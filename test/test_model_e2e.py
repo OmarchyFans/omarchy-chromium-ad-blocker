@@ -10,7 +10,7 @@ import cdp
 
 S = os.path.dirname(os.path.abspath(__file__))
 EXT = os.path.join(os.path.dirname(S), "extension")
-PROF = f"{S}/prof_e2e"
+PROF = "/tmp/omarchy-adblock-test-test_model_e2e"
 HOSTNAME = "adtest.example"
 CACHE = os.path.expanduser(f"~/.local/share/omarchy-adblock/rules/{HOSTNAME}.json")
 LOG = os.path.expanduser("~/.local/share/omarchy-adblock/host.log")

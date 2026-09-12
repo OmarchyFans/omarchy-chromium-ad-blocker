@@ -1,9 +1,0 @@
-{
-  "name": "com.omarchy.adblock",
-  "description": "Omarchy ad blocker classification host",
-  "path": "/home/modpunk/Work/omarchy-chromium-ad-blocker/host/omarchy-adblock-host",
-  "type": "stdio",
-  "allowed_origins": [
-    "chrome-extension://fohhgkaemdiabgidgoajbgnccfccchac/"
-  ]
-}

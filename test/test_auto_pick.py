@@ -5,7 +5,7 @@ import cdp
 
 S = os.path.dirname(os.path.abspath(__file__))
 EXT = os.path.join(os.path.dirname(S), "extension")
-PROF = f"{S}/prof5"
+PROF = "/tmp/omarchy-adblock-test-test_auto_pick"
 USER_RULES = os.path.expanduser("~/.local/share/omarchy-adblock/user/127.0.0.1.json")
 if os.path.exists(USER_RULES): os.remove(USER_RULES)
 shutil.rmtree(PROF, ignore_errors=True)

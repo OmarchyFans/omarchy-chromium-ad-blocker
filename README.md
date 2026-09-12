@@ -1,16 +1,93 @@
 # omarchy-chromium-ad-blocker
 
-Filter lists go stale the week they ship. This reads the page instead and works
-out what an ad is, on a model running on your own GPU, and it never has to phone
-anyone to do it.
+Filter lists go stale the week they ship. This reads the page instead, on a
+model running on your own GPU, and never has to phone anyone to do it.
 
-Three ways to use it. The default asks first.
+Three opt-ins, each independent:
+
+| | Default | What it does |
+|---|---|---|
+| **1. Block ads** | on, asks first | Ads, popups and overlays. Hold **Ctrl+Alt** to see them, **Delete** to remove them, or turn on automatic removal. |
+| **2. Block tracking cookies** | off | Declines consent dialogs, blocks third-party trackers, clears tracker cookies. |
+| **3. Block legal popups** | off | Declines terms and privacy prompts that can be declined, and removes notices that offer no choice. |
+
+The popup shows what each has removed, for the current site and for all time.
+
+## 1 · Block ads
 
 | | |
 |---|---|
 | **Hold, look, delete** | Hold **Ctrl+Alt**. The page zooms out and every ad it found is outlined in red, with a count. **Delete** removes them. Let go instead and nothing happened. |
-| **Point at one** | Press **P** during the chord, or *Pick one* in the popup. Click an ad and it goes, and that becomes a permanent note about that site in your own hand. |
-| **Never ask again** | Turn on automatic mode and ads are removed as each page loads, before they paint. Off by default. |
+| **Point at one** | Press **P** during the chord, or *Pick one* in the popup. Click an ad and it goes, and it becomes a permanent note about that site in your own hand. |
+| **Never ask again** | Turn on automatic removal and ads go as each page loads, before they paint. |
+
+## 2 · Block tracking cookies
+
+It answers consent dialogs rather than hiding them. A hidden cookie wall leaves
+the site with no answer, and many then assume consent or ask again on the next
+page. Answering "no" is what actually stops it.
+
+- **Known consent platforms** are recognised by the buttons they ship: OneTrust,
+  Cookiebot, Didomi, Quantcast, Usercentrics, Osano, CookieYes, Termly,
+  Complianz, Klaro, Iubenda, Sourcepoint, TrustArc, Borlabs, CookieFirst and
+  Axeptio.
+- **Anything else** is found by its button text, including dialogs inside shadow
+  roots and cross-origin iframes. The local model is asked only when the words
+  do not settle it, and any pick that reads as "accept" is refused whatever the
+  model thought.
+- **No reject button on the first screen?** It opens the preferences, switches
+  off every control the site lets you switch off, and saves. Controls the site
+  has locked on are the strictly necessary ones, so they stay on.
+- **65 third-party tracker hosts** are blocked at the network level: analytics,
+  ad exchanges, social pixels. Third-party only, so a site measuring its own
+  pages keeps working.
+- **Tracker cookies are cleared by name** (`_ga`, `_fbp`, `_hj*` and so on),
+  never every cookie for a site, which would sign you out.
+- **Blocking every third-party cookie** is a separate switch, off even when this
+  is on. It changes a browser-wide setting and breaks some "sign in with Google"
+  and embedded payment flows. Chromium hands the setting back if the extension
+  is removed.
+
+A click from an extension is not a trusted event. Most consent platforms accept
+it; a few check, and will ignore it. When that happens, opt-in 1 can still hide
+the dialog.
+
+## 3 · Block legal popups
+
+It declines what can be declined and removes notices that offer no choice, like
+"by continuing you accept our terms" with only an OK.
+
+It never removes an agreement checkbox from a form you are submitting. Hiding
+that checkbox hides the terms without unbinding you from them: the site binds
+you when you submit either way. Nothing inside a form is touched, by any opt-in.
+
+## Private browsing
+
+```bash
+omarchy-adblock private on
+```
+
+Chromium opens in incognito from its next start, and your history is kept in
+`~/.local/share/omarchy-adblock/history.jsonl` (readable only by you) instead of
+nowhere. `omarchy-adblock history github` searches it.
+
+One step only you can do: Chromium refuses to let a program grant an extension
+incognito access. Open `chrome://extensions`, then Details on this extension,
+and turn on **Allow in Incognito**. Until then it does not run in incognito
+windows, and the popup says so.
+
+Incognito keeps no logins between sessions. That is the point, and why this is
+off unless you turn it on.
+
+## Statistics
+
+Counted when something is actually removed, not when it is detected, so manual
+mode adds nothing until you press Delete.
+
+```bash
+omarchy-adblock stats              # all time, plus the busiest sites
+omarchy-adblock stats nytimes.com  # one site
+```
 
 ## How it decides
 
@@ -150,6 +227,9 @@ omarchy-adblock marked                    # just the ads you marked by hand
 omarchy-adblock forget nytimes.com        # re-learn a site (keeps your own marks)
 omarchy-adblock unmark nytimes.com        # drop what you marked by hand
 omarchy-adblock log                       # why the model pass went quiet
+omarchy-adblock stats [host]              # what has been removed
+omarchy-adblock private on|off            # incognito, with history kept here
+omarchy-adblock history [search]          # that history
 ```
 
 Chromium discards a native host's stderr, so failures in the model pass would
