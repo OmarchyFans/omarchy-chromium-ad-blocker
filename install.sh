@@ -18,16 +18,19 @@ DATA_DIR="$HOME/.local/share/omarchy-adblock"
 VENV="$DATA_DIR/venv"
 HOOK_DIR="$HOME/.config/omarchy/hooks/post-update.d"
 
-SKIP_AI=0
+WITH_ANTHROPIC=0
 QUIET=0
 for arg in "$@"; do
   case "$arg" in
-    --no-ai) SKIP_AI=1 ;;
+    --with-anthropic) WITH_ANTHROPIC=1 ;;
+    --no-ai) ;;  # accepted for compatibility; the default install already adds nothing
     --quiet) QUIET=1 ;;
     -h | --help)
-      echo "Usage: ./install.sh [--no-ai] [--quiet]"
-      echo "  --no-ai   Skip the Python virtualenv; heuristics and static rules only."
-      echo "  --quiet   Suppress the closing summary (used by the post-update hook)."
+      echo "Usage: ./install.sh [--with-anthropic] [--quiet]"
+      echo "  --with-anthropic  Also install the Anthropic SDK in a virtualenv, for"
+      echo "                    machines with no GPU. The default backend is local"
+      echo "                    and needs no Python packages at all."
+      echo "  --quiet           Suppress the closing summary (used by the update hook)."
       exit 0
       ;;
     *) echo "install.sh: unknown option: $arg" >&2; exit 1 ;;
@@ -62,9 +65,10 @@ say "Extension ID: $EXT_ID"
 mkdir -p "$CONFIG_DIR" "$DATA_DIR/rules"
 chmod 700 "$CONFIG_DIR"
 
-if ((SKIP_AI)); then
-  say "Skipping the Python environment (--no-ai): static rules and heuristics only."
-else
+# The local backend talks to an OpenAI-compatible server over plain HTTP from
+# the standard library, so the default install adds no Python packages. The
+# virtualenv exists only for people who want the Anthropic backend instead.
+if ((WITH_ANTHROPIC)); then
   if [[ ! -x "$VENV/bin/python" ]]; then
     say "Creating the Python environment in $VENV …"
     python3 -m venv "$VENV" || fail "could not create the virtualenv at $VENV"
@@ -72,7 +76,7 @@ else
   say "Installing the anthropic SDK …"
   "$VENV/bin/pip" install --quiet --upgrade pip >/dev/null 2>&1 || true
   "$VENV/bin/pip" install --quiet --upgrade anthropic \
-    || fail "could not install the anthropic SDK; re-run with --no-ai to skip the AI pass"
+    || fail "could not install the anthropic SDK"
 fi
 
 # --- 3. API key template -----------------------------------------------------
@@ -94,8 +98,11 @@ fi
 if [[ ! -f "$CONFIG_DIR/config.json" ]]; then
   cat >"$CONFIG_DIR/config.json" <<'CFGEOF'
 {
+  "backend": "local",
+  "local_endpoint": "http://127.0.0.1:8080",
+  "local_thinking": true,
+  "mode": "manual",
   "model": "claude-haiku-4-5",
-  "effort": "low",
   "cache_days": 30,
   "max_candidates": 25
 }
@@ -180,6 +187,25 @@ for flags in chromium-flags.conf chrome-flags.conf brave-flags.conf; do
   fi
 done
 
+# --- 5b. Is there a local model to talk to? ----------------------------------
+# Checked rather than assumed. The local backend is the default, and on a fresh
+# machine there is usually nothing listening yet — better to say so now than to
+# leave someone wondering why only the obvious ads disappear.
+
+LOCAL_ENDPOINT=$(python3 -c '
+import json, pathlib
+p = pathlib.Path.home()/".config/omarchy-adblock/config.json"
+try:
+    print(json.loads(p.read_text()).get("local_endpoint", "http://127.0.0.1:8080"))
+except Exception:
+    print("http://127.0.0.1:8080")
+')
+
+LOCAL_UP=0
+if curl -sf --max-time 3 "$LOCAL_ENDPOINT/v1/models" >/dev/null 2>&1; then
+  LOCAL_UP=1
+fi
+
 # --- 6. Survive Omarchy updates ----------------------------------------------
 
 mkdir -p "$HOOK_DIR"
@@ -208,10 +234,29 @@ cat <<DONE
   Rule cache     $DATA_DIR/rules
   Settings       $CONFIG_DIR/config.json
 
+DONE
+
+if ((LOCAL_UP)); then
+  echo "  Local model    answering at $LOCAL_ENDPOINT"
+else
+  cat <<'NOMODEL'
+  Local model    nothing answering — static rules and heuristics only
+
+  The local backend expects an OpenAI-compatible server (llama.cpp's
+  llama-server, ollama, vLLM). Omarchy's own local agent provides one:
+
+      https://github.com/OmarchyFans/omarchy-fans-help
+
+  Point somewhere else with:  omarchy-adblock endpoint http://host:port
+  Or use the hosted model:    ./install.sh --with-anthropic
+NOMODEL
+fi
+
+cat <<'DONE2'
+
   Next:
-    1. Put your key in $CONFIG_DIR/env   (optional — heuristics work without it)
-    2. Restart Chromium completely:  omarchy-adblock restart
-    3. Check chrome://extensions shows "Omarchy Ad Blocker (AI)"
+    1. Restart Chromium completely:  omarchy-adblock restart
+    2. Hold Ctrl+Alt on any page to see what it found; press Delete to remove it
 
   Status any time:  omarchy-adblock status
-DONE
+DONE2

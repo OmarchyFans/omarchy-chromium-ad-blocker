@@ -17,18 +17,36 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 CONFIG_DIR = Path.home() / ".config" / "omarchy-adblock"
 DATA_DIR = Path.home() / ".local" / "share" / "omarchy-adblock"
 RULES_DIR = DATA_DIR / "rules"
+# Rules the user pointed at and called an ad, kept apart from what the model
+# worked out. These are a person's stated intent, so nothing expires them,
+# re-learning a site does not clear them, and the DOM audit leaves them alone.
+USER_DIR = DATA_DIR / "user"
 LOG_PATH = DATA_DIR / "host.log"
 
 DEFAULTS = {
-    # The cheapest current model, and the job suits it: a small, tightly
-    # schema'd classification over a couple of dozen short structural records,
-    # answered once per site and then cached. Any model in the table below works
-    # — set "model" in config.json and the request adapts to what it supports.
+    # "local" runs on your own GPU and is the default: nothing about a page you
+    # visit leaves the machine, there is no key to configure and no per-call
+    # cost. "anthropic" is the opt-in alternative for a machine with no GPU.
+    "backend": "local",
+    # Any OpenAI-compatible server: llama.cpp's llama-server, ollama, vLLM.
+    # Omarchy's own local agent (omarchy-local-agent.service) serves this one.
+    "local_endpoint": "http://127.0.0.1:8080",
+    # Left on deliberately. On a 4B model it is the difference between catching
+    # one ad in three and catching all three without touching the checkout form,
+    # and it is paid once per site rather than once per page.
+    "local_thinking": True,
+    # Generous: llama-server with --parallel 1 queues behind whatever else is
+    # asking it something, and a 25-candidate batch is ~6s of actual work.
+    "local_timeout": 120,
+    # Used only when backend is "anthropic". The cheapest current model, and the
+    # job suits it: a small, tightly schema'd classification, cached per site.
     "model": "claude-haiku-4-5",
     "effort": "low",
     "cache_days": 30,
@@ -200,6 +218,24 @@ def have_credentials():
     return bool(load_api_key()) or ANTHROPIC_PROFILE_DIR.is_dir()
 
 
+def local_server_up(cfg):
+    """Is there actually a model listening? Checked rather than assumed: the
+    local backend is the default, and most people's first install will not have
+    one running yet."""
+    url = cfg["local_endpoint"].rstrip("/") + "/v1/models"
+    try:
+        with urllib.request.urlopen(url, timeout=3) as resp:
+            return resp.status == 200
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def backend_ready(cfg):
+    if cfg.get("backend", "local") == "anthropic":
+        return have_credentials()
+    return local_server_up(cfg)
+
+
 def notify(title, body="", urgency="normal"):
     """Best effort — a missing notification must never fail a request."""
     try:
@@ -249,6 +285,41 @@ def is_private(host, cfg):
 
 def cache_path(host):
     return RULES_DIR / f"{host}.json"
+
+
+def user_path(host):
+    return USER_DIR / f"{host}.json"
+
+
+def read_user_rules(host):
+    path = user_path(host)
+    if not path.is_file():
+        return []
+    try:
+        data = json.loads(path.read_text())
+    except (ValueError, OSError):
+        return []
+    block = data.get("block")
+    return block if isinstance(block, list) else []
+
+
+def add_user_rule(host, selector):
+    """Record one hand-marked ad. Returns the site's full user list."""
+    if selector.strip().lower() in FORBIDDEN_SELECTORS:
+        return read_user_rules(host)
+    USER_DIR.mkdir(parents=True, exist_ok=True)
+    block = list(dict.fromkeys(read_user_rules(host) + [selector]))[:200]
+    payload = {
+        "version": CACHE_VERSION,
+        "host": host,
+        "source": "user",
+        "updated": int(time.time()),
+        "block": block,
+    }
+    tmp = user_path(host).with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(payload, indent=2))
+    tmp.replace(user_path(host))
+    return block
 
 
 def read_cache(host, cache_days):
@@ -349,19 +420,108 @@ def sanitize_candidate(c, max_text=120):
     }
 
 
-def classify(host, candidates, cfg, api_key):
-    """Ask Claude which candidates are ads. Returns a list of selectors."""
+def validate_block(block, candidates):
+    """Keep only what the model was actually allowed to say.
+
+    Shared by both backends: a model may only return selectors it was shown, and
+    never one broad enough to blank the page. A hallucinated or over-broad
+    selector is the one failure mode that would break a site rather than merely
+    leave an ad on it, so it is filtered here rather than trusted anywhere.
+    """
+    allowed = {c["selector"] for c in candidates}
+    return [
+        sel for sel in block
+        if isinstance(sel, str)
+        and sel in allowed
+        and sel.strip().lower() not in FORBIDDEN_SELECTORS
+    ]
+
+
+def build_prompt(host, candidates, user_marked):
+    payload = {"site": host, "candidates": candidates}
+    if user_marked:
+        # What this person has already called an ad on this site, in their own
+        # clicks. Worth more than anything in the prompt: it is ground truth for
+        # this exact site, and it teaches the shape of the rest.
+        payload["user_marked_as_ads_on_this_site"] = user_marked[:20]
+    return json.dumps(payload, separators=(",", ":"))
+
+
+# ------------------------------------------------------------- local backend
+
+
+def classify_local(host, candidates, cfg, user_marked):
+    """Classify on the local GPU through an OpenAI-compatible server.
+
+    Uses urllib rather than an SDK on purpose: the default install then needs no
+    Python packages at all, which is most of what made the local backend worth
+    having.
+    """
+    endpoint = cfg["local_endpoint"].rstrip("/") + "/v1/chat/completions"
+    body = {
+        "model": "local",  # llama-server serves whatever it was started with
+        "max_tokens": 700,
+        # Deterministic: the same page asked twice gives the same answer, which
+        # is what makes a cached verdict trustworthy.
+        "temperature": 0,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": build_prompt(host, candidates, user_marked)},
+        ],
+        # Not response_format "json_object" — that asks nicely and a 4B model
+        # answers with prose. A json_schema constrains generation itself, so the
+        # reply parses or the server refuses the request.
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {"name": "ads", "strict": True, "schema": RESPONSE_SCHEMA},
+        },
+    }
+    if not cfg.get("local_thinking", True):
+        body["chat_template_kwargs"] = {"enable_thinking": False}
+
+    req = urllib.request.Request(
+        endpoint,
+        data=json.dumps(body).encode(),
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=cfg["local_timeout"]) as resp:
+            data = json.load(resp)
+    except urllib.error.HTTPError as exc:
+        detail = ""
+        try:
+            detail = exc.read().decode()[:200]
+        except OSError:
+            pass
+        log(f"classify {host}: local HTTP {exc.code}: {detail}")
+        return [], f"local-http-{exc.code}"
+    except urllib.error.URLError as exc:
+        log(f"classify {host}: local server unreachable at {endpoint}: {exc.reason}")
+        return [], "local-unreachable"
+    except Exception as exc:  # noqa: BLE001 — any failure degrades to heuristics
+        log(f"classify {host}: local {type(exc).__name__}: {str(exc)[:200]}")
+        return [], type(exc).__name__
+
+    try:
+        content = data["choices"][0]["message"]["content"]
+        block = json.loads(content).get("block", [])
+    except (KeyError, IndexError, TypeError, ValueError):
+        log(f"classify {host}: local reply not usable: {str(data)[:200]}")
+        return [], "unparseable"
+
+    return validate_block(block, candidates), "ok"
+
+
+# --------------------------------------------------------- anthropic backend
+
+
+def classify_anthropic(host, candidates, cfg, user_marked, api_key):
     try:
         import anthropic
     except ImportError:
         return [], "sdk-missing"
 
-    allowed = {c["selector"] for c in candidates}
-    user_content = json.dumps(
-        {"site": host, "candidates": candidates}, separators=(",", ":")
-    )
     model = cfg["model"]
-
     output_config = {"format": {"type": "json_schema", "schema": RESPONSE_SCHEMA}}
     if model_supports(model, "effort"):
         output_config["effort"] = cfg["effort"]
@@ -370,7 +530,9 @@ def classify(host, candidates, cfg, api_key):
         "model": model,
         "max_tokens": 2000,
         "system": SYSTEM_PROMPT,
-        "messages": [{"role": "user", "content": user_content}],
+        "messages": [
+            {"role": "user", "content": build_prompt(host, candidates, user_marked)}
+        ],
         "output_config": output_config,
     }
     if model_supports(model, "fallbacks"):
@@ -407,15 +569,14 @@ def classify(host, candidates, cfg, api_key):
     except ValueError:
         return [], "unparseable"
 
-    # The model may only pick from what it was shown. Anything else is a
-    # hallucinated selector, and a broad one would blank the page.
-    clean = [
-        s for s in block
-        if isinstance(s, str)
-        and s in allowed
-        and s.strip().lower() not in FORBIDDEN_SELECTORS
-    ]
-    return clean, "ok"
+    return validate_block(block, candidates), "ok"
+
+
+def classify(host, candidates, cfg, user_marked=None):
+    user_marked = user_marked or []
+    if cfg.get("backend", "local") == "anthropic":
+        return classify_anthropic(host, candidates, cfg, user_marked, load_api_key())
+    return classify_local(host, candidates, cfg, user_marked)
 
 
 # ------------------------------------------------------------------ requests
@@ -442,9 +603,11 @@ def handle(msg, cfg):
                 last_error = lines[-1] if lines else ""
             except OSError:
                 pass
+        backend = cfg.get("backend", "local")
         reply.update(
-            ai_ready=have_credentials(),
-            model=cfg["model"],
+            ai_ready=backend_ready(cfg),
+            backend=backend,
+            model=cfg["model"] if backend == "anthropic" else cfg["local_endpoint"],
             cached_sites=len(list(RULES_DIR.glob("*.json"))) if RULES_DIR.is_dir() else 0,
             last_error=last_error,
         )
@@ -456,15 +619,32 @@ def handle(msg, cfg):
         return reply
 
     if op == "forget":
+        # Only what the model worked out. A hand-marked ad is not a guess to be
+        # thrown away when a guess turns out wrong.
         cache_path(host).unlink(missing_ok=True)
+        if msg.get("include_user"):
+            user_path(host).unlink(missing_ok=True)
         reply["forgot"] = host
+        reply["user"] = read_user_rules(host)
         return reply
 
     if op == "rules":
         cached = read_cache(host, cfg["cache_days"]) or {"block": [], "asked": []}
         reply["block"] = cached["block"]
         reply["asked"] = cached["asked"]
+        # Sent separately, not merged: the content script must know which rules
+        # came from the person so it never audits one of them away.
+        reply["user"] = read_user_rules(host)
         reply["source"] = "cache"
+        return reply
+
+    if op == "learn":
+        selector = msg.get("selector")
+        if not isinstance(selector, str) or not 0 < len(selector) <= 300:
+            reply["error"] = "bad-selector"
+            return reply
+        reply["user"] = add_user_rule(host, selector)
+        reply["learned"] = selector
         return reply
 
     if op != "classify":
@@ -485,17 +665,26 @@ def handle(msg, cfg):
     if not candidates:
         return reply
 
-    if not have_credentials():
-        notify_once(
-            "no-key",
-            "Ad blocker: heuristics only",
-            "Add ANTHROPIC_API_KEY to ~/.config/omarchy-adblock/env to let Claude classify the rest.",
-        )
-        reply["error"] = "no-api-key"
+    if not backend_ready(cfg):
+        if cfg.get("backend", "local") == "anthropic":
+            notify_once(
+                "no-key",
+                "Ad blocker: heuristics only",
+                "Add ANTHROPIC_API_KEY to ~/.config/omarchy-adblock/env to let Claude classify the rest.",
+            )
+            reply["error"] = "no-api-key"
+        else:
+            notify_once(
+                "no-local",
+                "Ad blocker: heuristics only",
+                f"No model answering at {cfg['local_endpoint']}. Run `omarchy-adblock backend` to set one up.",
+            )
+            reply["error"] = "no-local-model"
         return reply
-    api_key = load_api_key()
 
-    block, status = classify(host, candidates, cfg, api_key)
+    # A rule the user marked by hand is ground truth for this site, so it goes
+    # into the prompt as an example rather than being kept to one side.
+    block, status = classify(host, candidates, cfg, read_user_rules(host))
     if status == "sdk-missing":
         notify_once(
             "no-sdk",
@@ -540,6 +729,7 @@ def respond(msg, cfg):
 def main():
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     RULES_DIR.mkdir(parents=True, exist_ok=True)
+    USER_DIR.mkdir(parents=True, exist_ok=True)
     cfg = load_config()
 
     workers = []

@@ -1,44 +1,85 @@
 #!/bin/bash
 
-# omarchy:summary=Manage the AI ad blocker: status, cache, restart
+# omarchy:summary=Manage the Chromium ad blocker: status, backend, learned rules
 
 set -euo pipefail
 
 CONFIG_DIR="$HOME/.config/omarchy-adblock"
+CONFIG="$CONFIG_DIR/config.json"
 DATA_DIR="$HOME/.local/share/omarchy-adblock"
 RULES="$DATA_DIR/rules"
+USER_RULES="$DATA_DIR/user"
 
 usage() {
   cat <<USAGE
 Usage: omarchy-adblock <command>
 
-  status            What is installed, configured and learned
-  sites             Sites with learned rules, and how many each has
-  show <host>       The rules learned for one site
-  forget <host>     Throw away one site's learned rules
-  forget-all        Throw away every learned rule
-  log [n]           Last n lines of the host error log
-  key <api-key>     Store the Anthropic API key
-  model <id>        Set the model (default claude-haiku-4-5)
-  restart           Fully restart Chromium so changes take effect
+  status              What is installed, configured and learned
+  mode [manual|auto]  Manual: nothing goes until you press the chord (default).
+                      Auto: ads are removed as each page loads.
+  backend [local|anthropic]
+                      Local runs on your GPU and sends nothing off the machine.
+  endpoint <url>      Where the local model listens (default http://127.0.0.1:8080)
+  sites               Sites with learned rules, and how many each has
+  show <host>         The rules learned for one site
+  marked [host]       The ads you marked by hand
+  forget <host>       Throw away one site's learned rules (keeps your own)
+  forget-all          Throw away every learned rule (keeps your own)
+  unmark <host>       Throw away what you marked by hand on one site
+  key <api-key>       Store the Anthropic API key (only for that backend)
+  model <id>          Set the Anthropic model
+  log [n]             Last n lines of the host error log
+  restart             Fully restart Chromium so changes take effect
 USAGE
 }
 
-has_key() {
-  [[ -f "$CONFIG_DIR/env" ]] &&
-    grep -qE '^ANTHROPIC_API_KEY=.+' "$CONFIG_DIR/env"
+# One helper for every scalar read, so a hand-edited config with a missing key
+# still prints a status instead of a traceback.
+cfg_get() {
+  python3 -c '
+import json, pathlib, sys
+default = sys.argv[3]
+try:
+    print(json.loads(pathlib.Path(sys.argv[2]).read_text()).get(sys.argv[1], default))
+except Exception:
+    print(default)
+' "$1" "$CONFIG" "${2:-}"
 }
 
-cfg_get() {
-  python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get(sys.argv[2],''))" \
-    "$CONFIG_DIR/config.json" "$1" 2>/dev/null || true
+cfg_set() {
+  mkdir -p "$CONFIG_DIR"
+  python3 - "$CONFIG" "$1" "$2" "${3:-str}" <<'PY'
+import json, pathlib, sys
+path, key, raw, kind = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4]
+cfg = {}
+if path.is_file():
+    try:
+        cfg = json.loads(path.read_text())
+    except Exception:
+        cfg = {}
+cfg[key] = {"true": True, "false": False}[raw] if kind == "bool" else raw
+path.write_text(json.dumps(cfg, indent=2) + "\n")
+PY
+}
+
+count_json() { ls -1 "$1"/*.json 2>/dev/null | wc -l; }
+
+rule_count() {
+  python3 -c '
+import json, sys
+try:
+    print(len(json.load(open(sys.argv[1]))["block"]))
+except Exception:
+    print("?")
+' "$1"
 }
 
 case "${1:-status}" in
 status)
-  echo "Omarchy Ad Blocker"
+  backend=$(cfg_get backend local)
+  echo "omarchy-chromium-ad-blocker"
   echo
-  if grep -qs -- "-adblock-ai/extension" "$HOME/.config/chromium-flags.conf"; then
+  if grep -qs -- "-ad-blocker/extension" "$HOME/.config/chromium-flags.conf"; then
     echo "  Extension   loaded via ~/.config/chromium-flags.conf"
   else
     echo "  Extension   NOT in chromium-flags.conf — run ./install.sh"
@@ -48,56 +89,116 @@ status)
   else
     echo "  Host        NOT registered — run ./install.sh"
   fi
-  if [[ -x "$DATA_DIR/venv/bin/python" ]]; then
-    echo "  SDK         $("$DATA_DIR/venv/bin/python" -c 'import anthropic;print("anthropic "+anthropic.__version__)' 2>/dev/null || echo "missing — re-run ./install.sh")"
+  echo "  Mode        $(cfg_get mode manual)"
+  echo "  Backend     $backend"
+  if [[ $backend == "local" ]]; then
+    endpoint=$(cfg_get local_endpoint http://127.0.0.1:8080)
+    if curl -sf --max-time 3 "$endpoint/v1/models" >/dev/null 2>&1; then
+      # The served path is the whole answer to "which model", so print its name.
+      name=$(curl -sf --max-time 3 "$endpoint/v1/models" |
+        python3 -c 'import json,sys,os; print(os.path.basename(json.load(sys.stdin)["data"][0]["id"]))' 2>/dev/null || echo "?")
+      echo "  Local model $name at $endpoint"
+    else
+      echo "  Local model nothing answering at $endpoint — heuristics only"
+    fi
   else
-    echo "  SDK         not installed (heuristics only)"
+    if [[ -f "$CONFIG_DIR/env" ]] && grep -qE '^ANTHROPIC_API_KEY=.+' "$CONFIG_DIR/env"; then
+      echo "  API key     set · $(cfg_get model claude-haiku-4-5)"
+    else
+      echo "  API key     not set — heuristics only"
+    fi
+    if [[ -x "$DATA_DIR/venv/bin/python" ]]; then
+      echo "  SDK         $("$DATA_DIR/venv/bin/python" -c 'import anthropic;print("anthropic "+anthropic.__version__)' 2>/dev/null || echo 'missing — ./install.sh --with-anthropic')"
+    else
+      echo "  SDK         not installed — ./install.sh --with-anthropic"
+    fi
   fi
-  if has_key; then
-    echo "  API key     set"
-    echo "  Model       $(cfg_get model)"
-  else
-    echo "  API key     not set — heuristics only"
-  fi
-  echo "  Learned     $(ls -1 "$RULES" 2>/dev/null | wc -l) sites"
+  echo "  Learned     $(count_json "$RULES") sites"
+  echo "  Marked      $(count_json "$USER_RULES") sites with hand-marked ads"
   # Chromium throws away the host's stderr, so this log is the only place a
-  # broken AI pass ever shows up.
+  # broken model pass ever shows up.
   if [[ -s "$DATA_DIR/host.log" ]]; then
     echo "  Last error  $(tail -n1 "$DATA_DIR/host.log")"
   fi
   ;;
 
-log)
-  [[ -s "$DATA_DIR/host.log" ]] && tail -n "${2:-20}" "$DATA_DIR/host.log" \
-    || echo "No errors logged."
+mode)
+  if [[ -z ${2:-} ]]; then cfg_get mode manual; exit 0; fi
+  case "$2" in
+    manual | auto) cfg_set mode "$2"; echo "Mode set to $2. Reload any open tabs." ;;
+    *) echo "mode must be manual or auto" >&2; exit 1 ;;
+  esac
+  ;;
+
+backend)
+  if [[ -z ${2:-} ]]; then cfg_get backend local; exit 0; fi
+  case "$2" in
+    local | anthropic) cfg_set backend "$2"; echo "Backend set to $2. Restart Chromium: omarchy-adblock restart" ;;
+    *) echo "backend must be local or anthropic" >&2; exit 1 ;;
+  esac
+  ;;
+
+endpoint)
+  url="${2:?usage: omarchy-adblock endpoint <url>}"
+  cfg_set local_endpoint "$url"
+  if curl -sf --max-time 3 "$url/v1/models" >/dev/null 2>&1; then
+    echo "Endpoint set to $url — a model is answering there."
+  else
+    echo "Endpoint set to $url — warning: nothing answering there yet."
+  fi
   ;;
 
 sites)
-  [[ -d $RULES ]] || { echo "Nothing learned yet."; exit 0; }
   shopt -s nullglob
   files=("$RULES"/*.json)
   ((${#files[@]})) || { echo "Nothing learned yet."; exit 0; }
   for f in "${files[@]}"; do
-    printf '%-40s %s rules\n' "$(basename "$f" .json)" \
-      "$(python3 -c "import json,sys;print(len(json.load(open(sys.argv[1]))['block']))" "$f" 2>/dev/null || echo '?')"
+    printf '%-40s %s rules\n' "$(basename "$f" .json)" "$(rule_count "$f")"
   done
   ;;
 
 show)
   host="${2:?usage: omarchy-adblock show <host>}"
-  f="$RULES/$host.json"
-  [[ -f $f ]] || { echo "No rules learned for $host."; exit 1; }
-  python3 -c "import json,sys;d=json.load(open(sys.argv[1]));print('\n'.join(d['block']))" "$f"
+  found=0
+  for f in "$RULES/$host.json" "$USER_RULES/$host.json"; do
+    [[ -f $f ]] || continue
+    found=1
+    [[ $f == "$USER_RULES"/* ]] && echo "# marked by hand" || echo "# learned"
+    python3 -c 'import json,sys; print("\n".join(json.load(open(sys.argv[1]))["block"]))' "$f"
+  done
+  ((found)) || { echo "Nothing known about $host."; exit 1; }
+  ;;
+
+marked)
+  shopt -s nullglob
+  if [[ -n ${2:-} ]]; then
+    f="$USER_RULES/$2.json"
+    [[ -f $f ]] || { echo "You have not marked anything on $2."; exit 1; }
+    python3 -c 'import json,sys; print("\n".join(json.load(open(sys.argv[1]))["block"]))' "$f"
+    exit 0
+  fi
+  files=("$USER_RULES"/*.json)
+  ((${#files[@]})) || { echo "You have not marked anything by hand yet."; exit 0; }
+  for f in "${files[@]}"; do
+    printf '%-40s %s marked\n' "$(basename "$f" .json)" "$(rule_count "$f")"
+  done
   ;;
 
 forget)
   host="${2:?usage: omarchy-adblock forget <host>}"
-  rm -f "$RULES/$host.json" && echo "Forgot $host. Reload the page to re-learn it."
+  rm -f "$RULES/$host.json"
+  echo "Forgot what was learned about $host. What you marked by hand is kept."
   ;;
 
 forget-all)
   rm -f "$RULES"/*.json 2>/dev/null || true
-  echo "Forgot every learned site."
+  echo "Forgot every learned site. What you marked by hand is kept."
+  ;;
+
+unmark)
+  host="${2:?usage: omarchy-adblock unmark <host>}"
+  rm -f "$USER_RULES/$host.json"
+  echo "Cleared what you marked on $host."
   ;;
 
 key)
@@ -114,20 +215,20 @@ lines.append("ANTHROPIC_API_KEY=" + key)
 path.write_text("\n".join(lines) + "\n")
 PY
   chmod 600 "$CONFIG_DIR/env"
-  echo "Key stored. Restart Chromium: omarchy-adblock restart"
+  echo "Key stored. Switch to it with: omarchy-adblock backend anthropic"
   ;;
 
 model)
-  m="${2:?usage: omarchy-adblock model <model-id>}"
-  mkdir -p "$CONFIG_DIR"
-  python3 - "$CONFIG_DIR/config.json" "$m" <<'PY'
-import json, pathlib, sys
-path = pathlib.Path(sys.argv[1])
-cfg = json.loads(path.read_text()) if path.is_file() else {}
-cfg["model"] = sys.argv[2]
-path.write_text(json.dumps(cfg, indent=2) + "\n")
-PY
-  echo "Model set to $m. Restart Chromium: omarchy-adblock restart"
+  cfg_set model "${2:?usage: omarchy-adblock model <model-id>}"
+  echo "Model set to $2. Restart Chromium: omarchy-adblock restart"
+  ;;
+
+log)
+  if [[ -s "$DATA_DIR/host.log" ]]; then
+    tail -n "${2:-20}" "$DATA_DIR/host.log"
+  else
+    echo "No errors logged."
+  fi
   ;;
 
 restart)
