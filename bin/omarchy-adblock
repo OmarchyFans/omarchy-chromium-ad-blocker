@@ -280,11 +280,13 @@ private)
 Private mode on. Chromium opens in incognito from its next start, and your
 history is kept locally in $DATA_DIR/history.jsonl.
 
-One step only you can do, because Chromium refuses to let a program do it:
+IMPORTANT — until you do the next step, NOTHING is blocked, and the blocker's
+toolbar button will not appear, because every window is now incognito and
+Chromium refuses to let a program grant an extension incognito access:
   1. omarchy-adblock restart
   2. Open chrome://extensions, find "Omarchy Chromium Ad Blocker",
      open Details, and turn on "Allow in Incognito".
-Until then the blocker does not run in incognito windows at all.
+Undo at any time with: omarchy-adblock private off
 
 Incognito keeps no logins between sessions. That is the point, and it is why
 this is off unless you turn it on.

@@ -22,7 +22,15 @@
   const HIDE = "display:none!important;visibility:hidden!important;" +
                "opacity:0!important;pointer-events:none!important;";
 
-  let settings = { enabled: true, ai: true, mode: "manual", allowlist: [] };
+  let settings = { enabled: true, ai: true, mode: "manual", allowlist: [], cookies: false };
+  const startedAt = Date.now();
+  // With opt-in 2 on, a consent dialog is consent.js's to answer. Hiding it here
+  // first would leave the site with no answer — it re-prompts next page — and
+  // count a decline as an ad. So consent-shaped overlays wait a few seconds for
+  // it; whatever is still showing after that is fair game.
+  const CONSENT_SHAPED =
+    /\b(cookies?|consent|gdpr|ccpa|your privacy|privacy preferences|legitimate interest|tracking)\b/i;
+  const CONSENT_GRACE_MS = 6000;
   let aiPassDone = false;
   // What this site has already been asked about arrives over a round trip, and a
   // fast page finishes its first scan before it lands. Asking then would re-ask
@@ -304,6 +312,10 @@
     const z = parseInt(cs.zIndex, 10) || 0;
     const coverage = (r.width * r.height) / (innerWidth * innerHeight);
     const text = (el.innerText || "").slice(0, 2000);
+    if (settings.cookies && Date.now() - startedAt < CONSENT_GRACE_MS &&
+        CONSENT_SHAPED.test(text)) {
+      return null; // not settled — consent.js gets the first go
+    }
     const interrupts = INTERRUPT_WORDS.test(text);
     const hasClose = CLOSE_WORDS.test(text) ||
       !!el.querySelector('[aria-label*="close" i],[class*="close" i],[data-dismiss]');
@@ -747,7 +759,9 @@
       pending = setTimeout(() => { pending = null; run(); }, 400);
     }).observe(document.documentElement, { childList: true, subtree: true });
 
-    [1500, 4000, 9000].forEach((ms) => setTimeout(run, ms));
+    // 6500 is just past the consent grace period, so a dialog consent.js could
+    // not answer is hidden promptly rather than waiting for the 9s pass.
+    [1500, 4000, 6500, 9000].forEach((ms) => setTimeout(run, ms));
 
     addEventListener("keydown", onKeyDown, true);
     addEventListener("keyup", onKeyUp, true);
@@ -776,13 +790,14 @@
   });
 
   chrome.storage.local.get(
-    ["enabled", "ai", "mode", "allowlist", "rules:" + HOST, "user:" + HOST],
+    ["enabled", "ai", "mode", "allowlist", "cookies", "rules:" + HOST, "user:" + HOST],
     (s) => {
       settings = {
         enabled: s.enabled !== false,
         ai: s.ai !== false,
         mode: s.mode === "auto" ? "auto" : "manual",
         allowlist: s.allowlist || [],
+        cookies: s.cookies === true,
       };
       if (!settings.enabled) return;
       if (settings.allowlist.some((h) => HOST === h || HOST.endsWith("." + h))) return;

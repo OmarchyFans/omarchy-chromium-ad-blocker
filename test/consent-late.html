@@ -1,0 +1,17 @@
+<!doctype html><title>late</title><body style="margin:0;font:15px system-ui">
+<main><h1>Article</h1><p>Content.</p></main>
+<script>
+ // Injected a second after load, the way real consent platforms arrive — and
+ // the case where the ad layer's mutation observer can reach it first.
+ setTimeout(() => {
+   document.body.insertAdjacentHTML('beforeend', `<div id="onetrust-consent-sdk"><div id="onetrust-banner-sdk"
+     style="position:fixed;inset:0;z-index:9999;background:#000c;color:#fff;padding:40px">
+     We and our partners use cookies. <button id="onetrust-accept-btn-handler">Accept All Cookies</button>
+     <button id="onetrust-reject-all-handler">Reject All</button></div></div>`);
+   const choose = (v) => { document.documentElement.dataset.consent = v;
+     document.getElementById('onetrust-consent-sdk').remove(); };
+   document.getElementById('onetrust-accept-btn-handler').onclick = () => choose('accepted');
+   document.getElementById('onetrust-reject-all-handler').onclick = () => choose('rejected');
+ }, 1300);
+</script>
+</body>

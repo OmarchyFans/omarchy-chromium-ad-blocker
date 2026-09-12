@@ -45,8 +45,11 @@
 
   // "No" in the words sites actually use. Deliberately does not match a bare
   // "manage" or "settings" — opening a preferences pane is not an answer.
+  // Not "save and exit": on a first screen with everything pre-ticked, that
+  // button accepts. It is only safe after the switches are off, so it lives in
+  // SAVE_TEXT for the preferences pass.
   const REJECT_TEXT =
-    /^(\s*)(reject all|reject|decline all|decline|refuse all|refuse|deny all|deny|do not (accept|consent|sell|share)|don'?t accept|only (necessary|essential|required)|(necessary|essential|required) (cookies )?only|use necessary (cookies )?only|continue without (accepting|agreeing)|save and exit|no,? thanks?|disagree|opt out)(\s*)$/i;
+    /^(\s*)(reject all|reject|decline all|decline|refuse all|refuse|deny all|deny|do not (accept|consent|sell|share)|don'?t accept|only (necessary|essential|required)|(necessary|essential|required) (cookies )?only|use necessary (cookies )?only|continue without (accepting|agreeing)|no,? thanks?|disagree|opt out)(\s*)$/i;
 
   // What a consent or legal dialog says about itself.
   const CONSENT_WORDS =
@@ -270,6 +273,10 @@
     let n = 0;
     for (const el of consentDialogs()) {
       if (el.querySelector("form") || el.closest("form")) continue;
+      // A sticky footer full of "Terms | Privacy" links matches the words and
+      // offers no buttons, and it is the site's own furniture, not a popup.
+      if (el.closest("footer,nav,header") || el.matches("footer,nav,header")) continue;
+      if (el.querySelectorAll("a").length > 4) continue;
       if (el.querySelector("input,select,textarea")) continue;
       const buttons = buttonsIn(el);
       // If it can be declined, pass 1-3 should have done it; only take the ones

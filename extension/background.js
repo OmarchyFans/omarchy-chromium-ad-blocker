@@ -246,10 +246,11 @@ async function sweepTrackerCookies(url) {
   if (!privacy.cookies) return 0;
   let host;
   try { host = new URL(url).hostname; } catch { return 0; }
-  const base = host.split(".").slice(-2).join(".");
   let removed = 0;
   let cookies = [];
-  try { cookies = await chrome.cookies.getAll({ domain: base }); } catch { return 0; }
+  // By URL, not by a guessed base domain: splitting off the last two labels
+  // turns bbc.co.uk into co.uk, which matches every UK site's cookies.
+  try { cookies = await chrome.cookies.getAll({ url }); } catch { return 0; }
   for (const c of cookies) {
     if (!TRACKER_COOKIE.test(c.name)) continue;
     const scheme = c.secure ? "https://" : "http://";
@@ -263,12 +264,35 @@ async function sweepTrackerCookies(url) {
   return removed;
 }
 
-// Network-rule matches are counted by polling rather than by event: the
-// per-request debug event only exists for unpacked extensions, and this is
-// meant to keep counting if it is ever packed.
+// Network-rule matches. Counted by event where Chromium offers one (unpacked
+// extensions, which is how this is installed), and otherwise by a slow poll:
+// getMatchedRules allows only 20 calls per 10 minutes, and polling faster than
+// that exhausts the quota in minutes and then fails silently for good.
+const tabHosts = new Map();
+if (chrome.declarativeNetRequest.onRuleMatchedDebug) {
+  const pending = new Map();
+  let flushTimer = null;
+  chrome.declarativeNetRequest.onRuleMatchedDebug.addListener((info) => {
+    const tabId = info.request.tabId;
+    if (tabId < 0) return;
+    pending.set(tabId, (pending.get(tabId) || 0) + 1);
+    if (flushTimer) return;
+    flushTimer = setTimeout(async () => {
+      flushTimer = null;
+      for (const [id, n] of pending) {
+        let host = tabHosts.get(id);
+        if (!host) {
+          try { host = new URL((await chrome.tabs.get(id)).url).hostname; } catch { continue; }
+        }
+        stat(host, { trackers: n });
+      }
+      pending.clear();
+    }, 2000);
+  });
+}
 let lastMatchTs = Date.now();
 async function countBlockedRequests() {
-  if (!privacy.cookies) return;
+  if (!privacy.cookies || chrome.declarativeNetRequest.onRuleMatchedDebug) return;
   let info;
   try {
     info = await chrome.declarativeNetRequest.getMatchedRules({ minTimeStamp: lastMatchTs + 1 });
@@ -286,13 +310,13 @@ async function countBlockedRequests() {
     } catch { /* tab closed */ }
   }
 }
-setInterval(countBlockedRequests, 15000);
+setInterval(countBlockedRequests, 60000);
 
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
   if (info.status !== "complete" || !tab.url || !/^https?:/.test(tab.url)) return;
   // A beat after load, so cookies set by scripts during load are there to sweep.
+  try { tabHosts.set(tabId, new URL(tab.url).hostname); } catch { /* fine */ }
   setTimeout(() => sweepTrackerCookies(tab.url), 3000);
-  countBlockedRequests();
   // Sent for incognito tabs too, so `omarchy-adblock private on` works without
   // the popup; the host decides whether to keep it.
   if (privacy.history || tab.incognito) {

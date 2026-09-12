@@ -48,6 +48,14 @@ page. Answering "no" is what actually stops it.
   and embedded payment flows. Chromium hands the setting back if the extension
   is removed.
 
+Blocked trackers are counted as they happen. Chromium only offers that event
+to unpacked extensions, which is how this installs; a packed copy falls back to
+checking once a minute, the most its rate limit allows.
+
+With automatic ad removal also on, a consent dialog gets six seconds to be
+answered before the ad layer may hide it. Hiding it first would leave the site
+with no answer, and it would ask again on the next page.
+
 A click from an extension is not a trusted event. Most consent platforms accept
 it; a few check, and will ignore it. When that happens, opt-in 1 can still hide
 the dialog.
@@ -71,10 +79,10 @@ Chromium opens in incognito from its next start, and your history is kept in
 `~/.local/share/omarchy-adblock/history.jsonl` (readable only by you) instead of
 nowhere. `omarchy-adblock history github` searches it.
 
-One step only you can do: Chromium refuses to let a program grant an extension
-incognito access. Open `chrome://extensions`, then Details on this extension,
-and turn on **Allow in Incognito**. Until then it does not run in incognito
-windows, and the popup says so.
+**Until you do one more step, nothing is blocked at all**, and the toolbar button
+does not appear: every window is now incognito, and Chromium refuses to let a
+program grant an extension incognito access. Open `chrome://extensions`, then
+Details on this extension, and turn on **Allow in Incognito**.
 
 Incognito keeps no logins between sessions. That is the point, and why this is
 off unless you turn it on.

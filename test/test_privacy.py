@@ -83,6 +83,24 @@ try:
     check(st["analytics"] == "false" and st["ads"] == "false", "every switch that can be turned off is off")
     check(st["necessary"] == "true", "the strictly necessary one, which the site locked on, is left on")
 
+    print("\n[automatic ad removal on too, banner arrives late]")
+    cdp.cjs(ws, cdp.isolated_context(ws), "chrome.storage.local.set({mode:'auto'}).then(()=>1)")
+    time.sleep(1)
+    ws = goto(ws, "consent-late.html", 9)
+    before_ads = json.loads(open(os.path.expanduser(
+        "~/.local/share/omarchy-adblock/stats.json")).read())["sites"].get("site.adtest.example", {}).get("ads", 0)
+    st = cdp.js(ws, """({consent: document.documentElement.dataset.consent || 'none',
+        banner: !!document.getElementById('onetrust-banner-sdk')})""")
+    print("   ", st)
+    check(st["consent"] == "rejected",
+          "the consent dialog is answered, not hidden by the ad layer getting there first")
+    time.sleep(2.5)
+    after_ads = json.loads(open(os.path.expanduser(
+        "~/.local/share/omarchy-adblock/stats.json")).read())["sites"].get("site.adtest.example", {}).get("ads", 0)
+    check(after_ads == before_ads, "and a declined dialog is not also counted as an ad")
+    cdp.cjs(ws, cdp.isolated_context(ws), "chrome.storage.local.set({mode:'manual'}).then(()=>1)")
+    time.sleep(1)
+
     print("\n[legal]")
     ws = goto(ws, "legal.html", 6)
     st = cdp.js(ws, """(() => {
@@ -90,11 +108,12 @@ try:
           return !!e && getComputedStyle(e).display !== 'none'; };
         return {passive: vis('passive'), form: vis('signup'), checkbox: vis('agree'),
                 label: vis('agree-label'), checked: document.getElementById('agree').checked,
-                submit: vis('submit')}; })()""")
+                submit: vis('submit'), footer: vis('sitefooter')}; })()""")
     print("   ", st)
     check(not st["passive"], "a passive 'by continuing you accept' notice is removed")
     check(st["form"] and st["checkbox"] and st["label"] and st["submit"],
           "the signup form and its agreement checkbox are untouched")
+    check(st["footer"], "the site's own sticky footer of legal links stays")
     check(st["checked"] is False, "and nothing ticked or unticked the checkbox on the person's behalf")
 
     print("\n[the numbers]")
