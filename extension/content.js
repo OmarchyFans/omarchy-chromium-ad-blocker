@@ -24,6 +24,10 @@
 
   let settings = { enabled: true, ai: true, mode: "manual", allowlist: [] };
   let aiPassDone = false;
+  // What this site has already been asked about arrives over a round trip, and a
+  // fast page finishes its first scan before it lands. Asking then would re-ask
+  // the model about the same sticky header on every single page load.
+  let rulesLoaded = false;
 
   // selector -> source, for everything we would remove. `user` and `static` are
   // never audited away; `cache` and `model` are.
@@ -327,7 +331,7 @@
     }
 
     report();
-    if (pendingCandidates.size && !aiPassDone) askModel();
+    if (rulesLoaded && pendingCandidates.size && !aiPassDone) askModel();
   };
 
   // ------------------------------------------------------------- layer 3: AI
@@ -661,6 +665,7 @@
     if (auto() && Array.isArray(cachedRules)) commit(cachedRules.filter(validSelector));
 
     chrome.runtime.sendMessage({ type: "rules", host: HOST }, (reply) => {
+      rulesLoaded = true;
       if (chrome.runtime.lastError || !reply) return;
       if (Array.isArray(reply.asked)) reply.asked.forEach((s) => alreadyAsked.add(s));
       if (Array.isArray(reply.user)) reply.user.forEach((s) => mark(s, "user"));
@@ -669,6 +674,12 @@
         auditWhenReady();
       }
       report();
+      // Anything the first scan queued up before this arrived is now safe to
+      // ask about, minus whatever this reply already settled.
+      for (const sel of [...pendingCandidates]) {
+        if (alreadyAsked.has(sel)) pendingCandidates.delete(sel);
+      }
+      if (pendingCandidates.size && !aiPassDone) askModel();
     });
 
     const run = () => { try { scan(); } catch (e) { /* never break the page */ } };

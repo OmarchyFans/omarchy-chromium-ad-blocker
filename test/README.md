@@ -15,7 +15,14 @@ python3 test/test_manual.py      # manual mode + the chord      (12 checks)
 python3 test/test_auto_pick.py   # auto mode                     (4 checks)
 python3 test/test_picker.py      # the click picker             (11 checks)
 python3 test/test_durable.py     # a hand-marked ad, next visit   (5 checks)
+python3 test/test_model_e2e.py   # browser -> host -> local GPU   (4 checks)
 ```
+
+`test_model_e2e.py` needs a model answering on `local_endpoint`. It also has to
+lie to Chromium: the test server is on loopback, and the host refuses to describe
+a loopback host to any model, so `--host-resolver-rules` maps a non-private name
+to 127.0.0.1. Without that, the model pass is never reached and the other tests
+exercise only the first two layers.
 
 Each launches its own Chromium with its own profile and debugging port, and
 copies the installed native-host manifest into it, so `./install.sh` must have

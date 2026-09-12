@@ -698,8 +698,14 @@ def handle(msg, cfg):
         # ads — a "leave this alone" is the more valuable half of the answer,
         # because it is the one that would otherwise be re-asked forever.
         asked = [c["selector"] for c in candidates]
+        # Name whatever actually answered. Recording cfg["model"] here wrote an
+        # Anthropic model id into caches produced by the local GPU.
+        answered_by = (
+            cfg["model"] if cfg.get("backend", "local") == "anthropic"
+            else f"local:{cfg['local_endpoint']}"
+        )
         reply["block"], reply["asked"] = merge_cache(
-            host, block, asked, cfg["model"], cfg["cache_days"]
+            host, block, asked, answered_by, cfg["cache_days"]
         )
     elif status != "ok":
         log(f"classify {host}: {status}")

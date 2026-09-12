@@ -22,6 +22,10 @@ Three layers, cheapest first. Nothing waits on the layer behind it.
 | **DOM heuristics** | Cookie walls, newsletter modals, notification nags, scroll locks | none |
 | **The model** | Whatever the first two were unsure about | one pass per site, ever |
 
+That last row is literal: the model is not asked again about anything this site
+has already been ruled on, and it is not asked at all until the site's history
+has come back from disk.
+
 The third layer runs least. A site is classified once; the verdicts are written
 to `~/.local/share/omarchy-adblock/rules/<host>.json` and mirrored into
 extension storage, so on every later visit the rules apply before the page
