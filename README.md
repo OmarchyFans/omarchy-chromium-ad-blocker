@@ -219,8 +219,13 @@ Nothing, on the default backend. On either backend:
 - Anything wrapping a `password` or card field is never hidden, at any layer.
 - Known app hosts (Google Docs, Figma, Slack, GitHub, YouTube …) skip the
   heuristics entirely, because there an overlay is usually the app.
-- Removing a modal releases the scroll lock it left on `<body>`. A page that
-  cannot scroll reads as a worse bug than the popup did.
+- Removing a modal releases the scroll lock it left on `<body>`, and the blur:
+  a blur filter on the page's content, or an empty blurred veil stacked over
+  it. A page that cannot scroll, or cannot be read, is a worse bug than the
+  popup was.
+- Bot checks (DataDome, Cloudflare Turnstile, reCAPTCHA, hCaptcha, Arkose,
+  PerimeterX) are never hidden, marked or un-blurred, and neither is anything
+  wrapping one. Hiding one leaves a blurred page that can never be passed.
 - Prompt injection in element text moved neither the model nor the filters when
   tested.
 

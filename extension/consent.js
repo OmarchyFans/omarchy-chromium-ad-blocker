@@ -11,6 +11,26 @@
 //   2. Anything else that looks like a consent dialog, by button text.
 //   3. The local model, asked which of these buttons declines. Cached per site.
 
+// Bot checks: DataDome, Cloudflare Turnstile, reCAPTCHA, hCaptcha, Arkose,
+// PerimeterX. A challenge covers the page on purpose, and hiding it strands the
+// person behind a blurred, unusable page with no way to pass. Neither layer ever
+// touches one, or anything inside one. Shared with content.js.
+const OMARCHY_CHALLENGE_HOSTS = /(^|\.)(captcha-delivery\.com|datadome\.co|challenges\.cloudflare\.com|hcaptcha\.com|arkoselabs\.com|funcaptcha\.com|px-cloud\.net|perimeterx\.net)$|^(www\.)?(google|recaptcha)\.(com|net)$/;
+const OMARCHY_CHALLENGE_SELECTOR = [
+  'iframe[src*="captcha-delivery.com"]', 'iframe[src*="datadome"]',
+  'iframe[src*="challenges.cloudflare.com"]', 'iframe[src*="hcaptcha.com"]',
+  'iframe[src*="recaptcha"]', 'iframe[src*="arkoselabs"]', 'iframe[src*="funcaptcha"]',
+  '[id^="datadome"]', '[id^="ddv1-captcha"]', '.cf-turnstile', '.g-recaptcha', '.h-captcha',
+  '#px-captcha', '[id^="px-captcha"]',
+].join(",");
+globalThis.OMARCHY_IS_CHALLENGE = (el) => {
+  try {
+    if (!el || !el.matches) return false;
+    if (el.matches(OMARCHY_CHALLENGE_SELECTOR) || el.closest(OMARCHY_CHALLENGE_SELECTOR)) return true;
+    return !!el.querySelector(OMARCHY_CHALLENGE_SELECTOR);
+  } catch { return false; }
+};
+
 // A modal locks the page behind it, and removing the modal without the lock
 // leaves a page that will not scroll. Sites lock in two ways: overflow:hidden on
 // html/body, or body{position:fixed; top:-<scrollY>px; height:<viewport>} so the
@@ -48,6 +68,38 @@ globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
       el.dataset.omarchyUnlocked = "1";
     }
     if (restoreTo !== null) window.scrollTo(0, restoreTo);
+    releaseBlur();
+  };
+  // The other thing a modal leaves behind: the page blurred behind it, either by
+  // a filter on the content or by a text-less veil with backdrop-filter stacked
+  // over it. Only large containers holding real text are un-blurred, so a
+  // decorative blurred hero image keeps its look; only empty full-screen veils
+  // are hidden, and never one wrapping a bot check.
+  const releaseBlur = () => {
+    if (!document.body) return;
+    const vw = innerWidth * innerHeight;
+    const containers = [document.documentElement, document.body, ...document.body.children];
+    for (const top of [...document.body.children]) containers.push(...top.children);
+    for (const el of containers) {
+      if (!(el instanceof Element) || el.id?.startsWith("omarchy")) continue;
+      const cs = getComputedStyle(el);
+      if (!/blur\(/.test(cs.filter)) continue;
+      if ((el.innerText || "").length < 200) continue;
+      el.style.setProperty("filter", "none", "important");
+      el.dataset.omarchyUnblurred = "1";
+    }
+    for (const el of document.querySelectorAll("body > *, body > * > *")) {
+      if (el.id?.startsWith("omarchy") || globalThis.OMARCHY_IS_CHALLENGE(el)) continue;
+      const cs = getComputedStyle(el);
+      if (cs.position !== "fixed" || cs.display === "none") continue;
+      if (!/blur\(/.test(cs.backdropFilter || cs.webkitBackdropFilter || "")) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width * r.height < vw * 0.55) continue;
+      if ((el.innerText || "").trim().length > 20) continue;
+      if (el.querySelector("iframe,input,button,a,video")) continue;
+      el.style.setProperty("display", "none", "important");
+      el.dataset.omarchyUnblurred = "1";
+    }
   };
   return () => {
     release();
@@ -66,6 +118,8 @@ globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
 (() => {
   const HOST = location.hostname;
   const TOP = window.top === window;
+  // Inside a bot check's own frame there is nothing to decline or remove.
+  if (OMARCHY_CHALLENGE_HOSTS.test(HOST)) return;
 
   let settings = { cookies: false, legal: false, enabled: true };
   let done = false;
@@ -181,6 +235,7 @@ globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
       if (!visible(el)) continue;
       const cs = getComputedStyle(el);
       if (cs.position !== "fixed" && cs.position !== "sticky") continue;
+      if (globalThis.OMARCHY_IS_CHALLENGE(el)) continue;
       const r = el.getBoundingClientRect();
       if (r.width * r.height < 8000) continue;
       const text = textOf(el).slice(0, 600);

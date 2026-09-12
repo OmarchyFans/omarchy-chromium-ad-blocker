@@ -78,6 +78,8 @@
     // not a popup; hiding it hides the terms without unbinding anyone from them,
     // and the site binds you on submit either way.
     if (el.closest("form")) return true;
+    // Never a bot check, or anything wrapping one (defined in consent.js).
+    if (globalThis.OMARCHY_IS_CHALLENGE && globalThis.OMARCHY_IS_CHALLENGE(el)) return true;
     // Never hide something wrapping a login or payment field.
     if (el.querySelector('input[type="password"], input[autocomplete*="cc-"]')) return true;
     return false;
@@ -144,6 +146,9 @@
     if (auto()) {
       commitElement(el, selector);
       tally([el]);
+      // A heuristic hide is an overlay; whatever it locked or blurred goes too.
+      clearTimeout(releaseTimer);
+      releaseTimer = setTimeout(releaseScrollLock, 50);
     }
     return true;
   };
@@ -189,6 +194,7 @@
   // A modal usually locks the page behind it. Removing the modal without
   // releasing the lock leaves a page that cannot scroll, which reads as a worse
   // bug than the popup itself.
+  let releaseTimer = null;
   const releaseScrollLock = () => {
     // Defined by consent.js, which runs first in this same isolated world.
     if (globalThis.OMARCHY_UNLOCK_SCROLL) globalThis.OMARCHY_UNLOCK_SCROLL();

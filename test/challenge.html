@@ -1,0 +1,18 @@
+<!doctype html><title>bot check</title>
+<body style="margin:0;font:15px system-ui">
+<main><h1>Front page</h1>
+  <script>for (let i = 0; i < 60; i++) document.write(`<p>Story ${i}.</p>`);</script>
+</main>
+<script>
+  // DataDome's in-page challenge: a full-screen layer over a blurred page, the
+  // check itself in a frame from captcha-delivery.com.
+  window.addEventListener("load", () => {
+    const c = document.createElement("div");
+    c.id = "ddv1-captcha-container";
+    c.style.cssText = "position:fixed;inset:0;z-index:2147483647;backdrop-filter:blur(5px);background:rgba(0,0,0,.4)";
+    c.innerHTML = `<div>Verification required. Close this and you cannot continue.</div>
+      <iframe id="ddframe" src="http://geo.captcha-delivery.com:8933/page.html" style="width:400px;height:300px;border:0"></iframe>`;
+    document.body.appendChild(c);
+  });
+</script>
+</body>

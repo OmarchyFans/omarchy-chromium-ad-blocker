@@ -1,0 +1,24 @@
+<!doctype html><title>blur modal</title>
+<style>
+  body.paywall-open main { filter: blur(6px); }
+</style>
+<body style="margin:0;font:15px system-ui">
+<main id="content"><h1>Article</h1>
+  <script>for (let i = 0; i < 60; i++) document.write(`<p>Paragraph ${i} of a story the reader came here for.</p>`);</script>
+</main>
+<img id="hero" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" style="position:absolute;top:0;left:0;width:300px;height:120px;filter:blur(8px)">
+<script>
+  window.addEventListener("load", () => {
+    document.body.classList.add("paywall-open");
+    const veil = document.createElement("div");
+    veil.id = "veil";
+    veil.style.cssText = "position:fixed;inset:0;z-index:9998;backdrop-filter:blur(4px);background:rgba(255,255,255,.3)";
+    document.body.appendChild(veil);
+    const m = document.createElement("div");
+    m.id = "paywall";
+    m.style.cssText = "position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center";
+    m.innerHTML = `<div style="background:#fff;padding:24px;width:420px">Subscribe to continue reading. <a href="#" aria-label="close">Close</a></div>`;
+    document.body.appendChild(m);
+  });
+</script>
+</body>
