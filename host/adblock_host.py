@@ -29,6 +29,8 @@ RULES_DIR = DATA_DIR / "rules"
 # re-learning a site does not clear them, and the DOM audit leaves them alone.
 USER_DIR = DATA_DIR / "user"
 LOG_PATH = DATA_DIR / "host.log"
+STATS_PATH = DATA_DIR / "stats.json"
+HISTORY_PATH = DATA_DIR / "history.jsonl"
 
 DEFAULTS = {
     # "local" runs on your own GPU and is the default: nothing about a page you
@@ -250,6 +252,91 @@ def notify(title, body="", urgency="normal"):
         pass
 
 
+# --------------------------------------------------------------------- stats
+
+_stats_lock = threading.Lock()
+
+# The four things this removes, counted separately because they are different
+# claims: an ad hidden, a request never made, a consent dialog actually answered,
+# and a legal notice taken off the page.
+STAT_KINDS = ("ads", "trackers", "consent", "legal")
+
+
+def read_stats():
+    if not STATS_PATH.is_file():
+        return {"totals": {k: 0 for k in STAT_KINDS}, "sites": {}}
+    try:
+        data = json.loads(STATS_PATH.read_text())
+    except (ValueError, OSError):
+        return {"totals": {k: 0 for k in STAT_KINDS}, "sites": {}}
+    totals = data.get("totals") or {}
+    return {
+        "totals": {k: int(totals.get(k, 0) or 0) for k in STAT_KINDS},
+        "sites": data.get("sites") if isinstance(data.get("sites"), dict) else {},
+    }
+
+
+def bump_stats(host, counts):
+    """Add to the running totals. Called on commit, never on mark: in manual
+    mode nothing has been removed until Delete, so nothing is counted."""
+    clean = {k: int(v) for k, v in counts.items()
+             if k in STAT_KINDS and isinstance(v, (int, float)) and 0 < v < 100000}
+    if not clean:
+        return read_stats()
+    with _stats_lock:
+        stats = read_stats()
+        for k, v in clean.items():
+            stats["totals"][k] += v
+        site = stats["sites"].setdefault(host, {k: 0 for k in STAT_KINDS})
+        for k, v in clean.items():
+            site[k] = int(site.get(k, 0)) + v
+        site["last"] = int(time.time())
+        # Keep the per-site table from growing without bound; the totals are
+        # what the numbers are really for.
+        if len(stats["sites"]) > 2000:
+            ranked = sorted(stats["sites"].items(),
+                            key=lambda kv: kv[1].get("last", 0), reverse=True)
+            stats["sites"] = dict(ranked[:1500])
+        try:
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+            tmp = STATS_PATH.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(stats, indent=1))
+            tmp.replace(STATS_PATH)
+        except OSError as exc:
+            log(f"stats write failed: {exc}")
+        return stats
+
+
+# ------------------------------------------------------------------- history
+
+_history_lock = threading.Lock()
+
+
+def record_visit(url, title):
+    """Incognito keeps no history, which is the point — but losing every page
+    you have ever read is not what most people mean by private. This file is
+    that history, on your disk, readable by you and nothing else."""
+    if not isinstance(url, str) or not url.startswith(("http://", "https://")):
+        return False
+    entry = {
+        "ts": int(time.time()),
+        "url": url[:2000],
+        "title": (title if isinstance(title, str) else "")[:300],
+    }
+    with _history_lock:
+        try:
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+            existed = HISTORY_PATH.exists()
+            with HISTORY_PATH.open("a") as fh:
+                fh.write(json.dumps(entry) + "\n")
+            if not existed:
+                HISTORY_PATH.chmod(0o600)
+        except OSError as exc:
+            log(f"history write failed: {exc}")
+            return False
+    return True
+
+
 # --------------------------------------------------------------------- cache
 
 HOST_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9._-]{0,252}[A-Za-z0-9])?$")
@@ -447,6 +534,104 @@ def build_prompt(host, candidates, user_marked):
     return json.dumps(payload, separators=(",", ":"))
 
 
+# ------------------------------------------------------------ consent model
+
+CONSENT_PROMPT = """\
+You are shown the text of a cookie-consent or privacy dialog and the buttons in \
+it. Pick the one button that declines: rejects all non-essential cookies, \
+refuses tracking, or keeps only what is strictly necessary.
+
+Never pick a button that accepts, agrees, allows, or opens a settings page \
+without deciding. If no button declines, return an empty selector. Return the \
+selector of the chosen button exactly as given.\
+"""
+
+CONSENT_SCHEMA = {
+    "type": "object",
+    "properties": {"selector": {"type": "string"}},
+    "required": ["selector"],
+    "additionalProperties": False,
+}
+
+# Words that mean yes. A model that picks one of these has picked wrong, and
+# clicking it would do the opposite of what was asked, so it is refused here
+# whatever the model thought.
+ACCEPT_WORDS = re.compile(
+    r"\b(accept|agree|allow|consent|ok|okay|got it|continue|yes|enable|i understand)\b", re.I)
+DECLINE_WORDS = re.compile(
+    r"\b(reject|decline|refuse|deny|necessary|essential|required only|disagree|opt out|no thanks|without)\b", re.I)
+
+
+def consent_path(host):
+    return RULES_DIR / f"consent-{host}.json"
+
+
+def classify_consent(host, dialog, buttons, cfg):
+    """Which button says no. Cached per site: a site's dialog is the same dialog
+    on every page, so this is asked once."""
+    cached = consent_path(host)
+    if cached.is_file():
+        try:
+            data = json.loads(cached.read_text())
+            if time.time() - data.get("updated", 0) < cfg["cache_days"] * 86400:
+                return data.get("selector", ""), "cache"
+        except (ValueError, OSError):
+            pass
+
+    clean = []
+    for b in buttons[:12]:
+        if not isinstance(b, dict) or not isinstance(b.get("selector"), str):
+            continue
+        clean.append({
+            "selector": b["selector"][:200],
+            "label": re.sub(r"\s+", " ", str(b.get("label", "")))[:60],
+            "tag": str(b.get("tag", ""))[:12],
+            "cls": str(b.get("cls", ""))[:80],
+        })
+    if not clean:
+        return "", "no-buttons"
+
+    endpoint = cfg["local_endpoint"].rstrip("/") + "/v1/chat/completions"
+    body = {
+        "model": "local", "max_tokens": 500, "temperature": 0,
+        "messages": [
+            {"role": "system", "content": CONSENT_PROMPT},
+            {"role": "user", "content": json.dumps(
+                {"dialog": str(dialog)[:300], "buttons": clean}, separators=(",", ":"))},
+        ],
+        "response_format": {"type": "json_schema", "json_schema": {
+            "name": "decline", "strict": True, "schema": CONSENT_SCHEMA}},
+    }
+    if not cfg.get("local_thinking", True):
+        body["chat_template_kwargs"] = {"enable_thinking": False}
+    try:
+        req = urllib.request.Request(endpoint, data=json.dumps(body).encode(),
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=cfg["local_timeout"]) as resp:
+            data = json.load(resp)
+        chosen = json.loads(data["choices"][0]["message"]["content"]).get("selector", "")
+    except Exception as exc:  # noqa: BLE001
+        log(f"consent {host}: {type(exc).__name__}: {str(exc)[:200]}")
+        return "", "error"
+
+    by_sel = {b["selector"]: b for b in clean}
+    pick = by_sel.get(chosen)
+    if not pick:
+        return "", "not-offered"
+    label = pick["label"]
+    if ACCEPT_WORDS.search(label) and not DECLINE_WORDS.search(label):
+        log(f"consent {host}: refused model pick '{label}' — reads as accept")
+        return "", "refused-accept"
+
+    try:
+        RULES_DIR.mkdir(parents=True, exist_ok=True)
+        consent_path(host).write_text(json.dumps(
+            {"host": host, "selector": chosen, "label": label, "updated": int(time.time())}))
+    except OSError:
+        pass
+    return chosen, "ok"
+
+
 # ------------------------------------------------------------- local backend
 
 
@@ -595,6 +780,10 @@ def handle(msg, cfg):
     op = msg.get("op")
     reply = {"id": msg.get("id"), "block": []}
 
+    if op == "stats":
+        reply.update(read_stats())
+        return reply
+
     if op == "status":
         last_error = ""
         if LOG_PATH.is_file():
@@ -613,12 +802,42 @@ def handle(msg, cfg):
         )
         return reply
 
+    if op == "visit":
+        # Either switch turns it on: the popup's (sent with the request) or
+        # `omarchy-adblock private on` (in the config). Otherwise the URL is
+        # dropped here, never written.
+        if msg.get("requested") is True or cfg.get("history") is True:
+            reply["recorded"] = record_visit(msg.get("url"), msg.get("title"))
+        else:
+            reply["recorded"] = False
+        return reply
+
     host = safe_host(msg.get("host"))
     if not host:
         reply["error"] = "bad-host"
         return reply
 
+    if op == "consent":
+        if is_private(host, cfg):
+            reply["error"] = "host-excluded"
+            return reply
+        if cfg.get("backend", "local") != "local" or not local_server_up(cfg):
+            reply["error"] = "no-local-model"
+            return reply
+        buttons = msg.get("buttons")
+        selector, status = classify_consent(
+            host, msg.get("dialog", ""), buttons if isinstance(buttons, list) else [], cfg)
+        reply["selector"] = selector
+        reply["source"] = status
+        return reply
+
+    if op == "stat":
+        counts = msg.get("counts")
+        reply.update(bump_stats(host, counts if isinstance(counts, dict) else {}))
+        return reply
+
     if op == "forget":
+        consent_path(host).unlink(missing_ok=True)
         # Only what the model worked out. A hand-marked ad is not a guess to be
         # thrown away when a guess turns out wrong.
         cache_path(host).unlink(missing_ok=True)

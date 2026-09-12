@@ -1,0 +1,25 @@
+<!doctype html><title>prefs</title><body style="margin:0;font:15px system-ui">
+<main><h1>Article</h1></main>
+<div id="cmp" style="position:fixed;inset:auto 0 0 0;height:260px;z-index:9999;background:#fff;padding:20px">
+  <p>Your privacy: we use cookies to give you the best experience.</p>
+  <div id="first"><button id="acc">Accept</button> <button id="man">Manage preferences</button></div>
+  <div id="pane" style="display:none">
+    <label><input type="checkbox" id="c-necessary" checked disabled> Strictly necessary</label>
+    <label><input type="checkbox" id="c-analytics" checked> Analytics</label>
+    <label><input type="checkbox" id="c-ads" checked> Advertising</label>
+    <button id="save">Save preferences</button>
+  </div>
+</div>
+<script>
+ const d = document.documentElement.dataset;
+ acc.onclick = () => { d.consent = 'accepted'; cmp.remove(); };
+ man.onclick = () => { first.style.display = 'none'; pane.style.display = 'block'; d.consent = 'opened'; };
+ save.onclick = () => {
+   d.consent = 'saved';
+   d.necessary = document.getElementById('c-necessary').checked;
+   d.analytics = document.getElementById('c-analytics').checked;
+   d.ads = document.getElementById('c-ads').checked;
+   cmp.remove();
+ };
+</script>
+</body>

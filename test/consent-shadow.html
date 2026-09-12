@@ -1,0 +1,13 @@
+<!doctype html><title>shadow</title><body style="margin:0;font:15px system-ui">
+<main><h1>Article</h1></main>
+<div id="host-el"></div>
+<script>
+ const root = document.getElementById('host-el').attachShadow({mode: 'open'});
+ root.innerHTML = `<div style="position:fixed;inset:auto 0 0 0;height:200px;z-index:9999;background:#fff;padding:20px">
+   <p>We value your privacy. This site uses cookies for analytics and advertising.</p>
+   <button class="x1">Allow all</button> <button class="x2">Reject all</button></div>`;
+ const done = (v) => { document.documentElement.dataset.consent = v; root.innerHTML = ''; };
+ root.querySelector('.x1').onclick = () => done('accepted');
+ root.querySelector('.x2').onclick = () => done('rejected');
+</script>
+</body>

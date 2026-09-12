@@ -1,44 +1,60 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>Omarchy Ad Blocker</title>
+<title>Omarchy Chromium Ad Blocker</title>
 <style>
   :root {
     color-scheme: light dark;
     --bg: #ffffff; --fg: #1c1c1e; --muted: #6b6b70;
-    --line: #e3e3e6; --accent: #2f6feb;
+    --line: #e3e3e6; --accent: #2f6feb; --soft: #f4f4f6;
   }
   @media (prefers-color-scheme: dark) {
     :root { --bg: #1c1c1e; --fg: #ececef; --muted: #98989f;
-            --line: #2f2f33; --accent: #6f9bff; }
+            --line: #2f2f33; --accent: #6f9bff; --soft: #26262a; }
   }
-  body { margin: 0; width: 272px; background: var(--bg); color: var(--fg);
+  body { margin: 0; width: 300px; background: var(--bg); color: var(--fg);
          font: 13px/1.45 system-ui, sans-serif; }
   header { padding: 12px 14px 10px; border-bottom: 1px solid var(--line); }
-  h1 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .01em; }
+  h1 { margin: 0; font-size: 13px; font-weight: 600; }
   .host { margin-top: 2px; color: var(--muted); font-size: 12px;
           overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .row { display: flex; align-items: center; justify-content: space-between;
-         gap: 10px; padding: 9px 14px; }
-  .row + .row { border-top: 1px solid var(--line); }
-  .row label { flex: 1; cursor: pointer; }
-  .sub { display: block; color: var(--muted); font-size: 11px; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+           background: var(--line); border-bottom: 1px solid var(--line); }
+  .stat { background: var(--bg); padding: 8px 4px; text-align: center; }
+  .stat b { display: block; font-size: 16px; font-variant-numeric: tabular-nums; }
+  .stat span { color: var(--muted); font-size: 10px; }
+  .scope { display: flex; justify-content: center; gap: 4px; padding: 6px;
+           border-bottom: 1px solid var(--line); }
+  .scope button { width: auto; padding: 2px 9px; font-size: 11px; }
+  .scope button[aria-pressed=true] { border-color: var(--accent); color: var(--accent); }
+
+  section { border-bottom: 1px solid var(--line); }
+  .head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; }
+  .head label { flex: 1; cursor: pointer; font-weight: 600; }
+  .sub { display: block; color: var(--muted); font-size: 11px; font-weight: 400; }
+  .body { padding: 0 14px 11px; }
+  .body[hidden] { display: none; }
+  .inner { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+  .inner label { flex: 1; cursor: pointer; }
   input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
-  footer { padding: 9px 14px 12px; border-top: 1px solid var(--line); }
+
   button { width: 100%; padding: 6px; font: inherit; color: var(--fg);
            background: transparent; border: 1px solid var(--line);
            border-radius: 6px; cursor: pointer; }
   button:hover { border-color: var(--accent); color: var(--accent); }
-  #status { margin-top: 8px; color: var(--muted); font-size: 11px; }
-  .actions { padding: 11px 14px 12px; border-bottom: 1px solid var(--line); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.go { background: var(--accent); border-color: var(--accent);
+              color: #fff; font-weight: 600; }
+  button.go:hover { filter: brightness(1.08); color: #fff; }
   .row2 { display: flex; gap: 7px; margin-top: 7px; }
   .row2 button { flex: 1; }
-  button.go { background: var(--accent); border-color: var(--accent);
-              color: #fff; font-weight: 600; padding: 8px; }
-  button.go:hover { filter: brightness(1.08); color: #fff; }
-  .hint { font-weight: 400; opacity: .85; margin-left: 5px; }
-  .chord { margin-top: 9px; color: var(--muted); font-size: 11px; text-align: center; }
-  .k { display: inline-block; padding: 0 4px; margin: 0 1px;
-       border: 1px solid var(--line); border-radius: 4px; font-size: 10px; }
+  .chord { margin-top: 7px; color: var(--muted); font-size: 11px; text-align: center; }
+  .k { display: inline-block; padding: 0 4px; border: 1px solid var(--line);
+       border-radius: 4px; font-size: 10px; }
+  .note { margin-top: 6px; padding: 7px 9px; border-radius: 6px; background: var(--soft);
+          color: var(--muted); font-size: 11px; }
+  footer { padding: 9px 14px 12px; }
+  #status { margin-top: 8px; color: var(--muted); font-size: 11px; }
 </style>
 
 <header>
@@ -46,39 +62,80 @@
   <div class="host" id="host">—</div>
 </header>
 
-<div class="actions">
-  <button id="deleteAll" class="go">Delete all ads<span class="hint" id="count"></span></button>
-  <div class="row2">
-    <button id="preview">Show me</button>
-    <button id="pick">Pick one</button>
+<div class="stats" aria-live="polite">
+  <div class="stat"><b id="sAds">0</b><span>ads</span></div>
+  <div class="stat"><b id="sTrackers">0</b><span>trackers</span></div>
+  <div class="stat"><b id="sConsent">0</b><span>declined</span></div>
+  <div class="stat"><b id="sLegal">0</b><span>legal</span></div>
+</div>
+<div class="scope">
+  <button id="scopeSite" aria-pressed="true">This site</button>
+  <button id="scopeAll" aria-pressed="false">All time</button>
+</div>
+
+<section>
+  <div class="head">
+    <label for="ads">1 · Block ads
+      <span class="sub">Ads, popups and overlays</span></label>
+    <input type="checkbox" id="ads">
   </div>
-  <div class="chord">Or hold <span class="k">Ctrl</span><span class="k">Alt</span> on the page,
-    then <span class="k">Delete</span></div>
-</div>
+  <div class="body" id="adsBody">
+    <button id="deleteAll" class="go">Delete all ads <span id="count"></span></button>
+    <div class="row2">
+      <button id="preview">Show me</button>
+      <button id="pick">Pick one</button>
+    </div>
+    <div class="chord">Or hold <span class="k">Ctrl</span> <span class="k">Alt</span>, then <span class="k">Delete</span></div>
+    <div class="inner">
+      <label for="mode">Delete automatically on every page</label>
+      <input type="checkbox" id="mode">
+    </div>
+    <div class="inner">
+      <label for="ai">Use the model on what the rules miss</label>
+      <input type="checkbox" id="ai">
+    </div>
+  </div>
+</section>
 
-<div class="row">
-  <label for="enabled">Blocking on
-    <span class="sub">Off leaves every page exactly as the site built it</span></label>
-  <input type="checkbox" id="enabled">
-</div>
+<section>
+  <div class="head">
+    <label for="cookies">2 · Block tracking cookies
+      <span class="sub">Decline consent, block trackers, clear their cookies</span></label>
+    <input type="checkbox" id="cookies">
+  </div>
+  <div class="body" id="cookiesBody" hidden>
+    <div class="inner">
+      <label for="cookiesThirdParty">Also block every third-party cookie
+        <span class="sub">Stronger, but can break sign-in with Google and embedded payments</span></label>
+      <input type="checkbox" id="cookiesThirdParty">
+    </div>
+    <div class="inner">
+      <label for="history">Keep my history on this machine
+        <span class="sub">For incognito, which keeps none</span></label>
+      <input type="checkbox" id="history">
+    </div>
+    <div class="note" id="incognitoNote" hidden>Not running in incognito windows yet. In chrome://extensions, open Details for this extension and turn on <b>Allow in Incognito</b>.</div>
+  </div>
+</section>
 
-<div class="row">
-  <label for="mode">Delete automatically
-    <span class="sub">Ads go as each page loads, without asking</span></label>
-  <input type="checkbox" id="mode">
-</div>
+<section>
+  <div class="head">
+    <label for="legal">3 · Block legal popups
+      <span class="sub">Decline terms and privacy prompts that can be declined</span></label>
+    <input type="checkbox" id="legal">
+  </div>
+  <div class="body" id="legalBody" hidden>
+    <div class="note">Removes notices with no choice in them. Never removes an agreement checkbox from a form you are submitting: that hides the terms without unbinding you from them.</div>
+  </div>
+</section>
 
-<div class="row">
-  <label for="ai">Use the model on leftovers
-    <span class="sub">Static rules and heuristics always run</span></label>
-  <input type="checkbox" id="ai">
-</div>
-
-<div class="row">
-  <label for="allow">Never block this site
-    <span class="sub" id="allowHost">—</span></label>
-  <input type="checkbox" id="allow">
-</div>
+<section>
+  <div class="head">
+    <label for="allow">Leave this site alone
+      <span class="sub" id="allowHost">—</span></label>
+    <input type="checkbox" id="allow">
+  </div>
+</section>
 
 <footer>
   <button id="forget">Re-learn this site</button>

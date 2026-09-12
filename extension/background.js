@@ -185,3 +185,148 @@ chrome.tabs.onUpdated.addListener((tabId, info) => {
     setBadge(tabId, 0);
   }
 });
+
+// ===================================================================== privacy
+//
+// Everything below is driven by three settings, all off until someone turns
+// them on: `cookies` (decline consent, block third-party trackers, sweep tracker
+// cookies), `cookiesThirdParty` (also block every third-party cookie, which is a
+// browser-wide change), and `legal` (handled in the content script). `history`
+// keeps a local record of visits, meant for use alongside incognito.
+
+// Tracker cookie names, not all cookies. Clearing everything for a domain would
+// sign the person out of it, which is not what "block tracking" means.
+const TRACKER_COOKIE = /^(_ga|_gid|_gat|_gcl_|__utm|_fbp|_fbc|fr$|_hj|ajs_|mp_|amplitude_|_uetsid|_uetvid|_clck|_clsk|_pin_unauth|_tt_|IDE$|test_cookie$|__qca|_scid|_rdt_uuid|muid$|anj$|uuid2$)/i;
+
+let privacy = { cookies: false, cookiesThirdParty: false, history: false };
+
+async function applyPrivacySettings() {
+  const s = await chrome.storage.local.get(["cookies", "cookiesThirdParty", "history"]);
+  privacy = {
+    cookies: s.cookies === true,
+    cookiesThirdParty: s.cookiesThirdParty === true,
+    history: s.history === true,
+  };
+
+  try {
+    await chrome.declarativeNetRequest.updateEnabledRulesets(
+      privacy.cookies
+        ? { enableRulesetIds: ["trackers"] }
+        : { disableRulesetIds: ["trackers"] }
+    );
+  } catch (e) { /* ruleset already in that state */ }
+
+  // Only ever set while this extension controls it, and cleared when turned off,
+  // so the browser's own setting comes back rather than being left forced.
+  try {
+    if (privacy.cookies && privacy.cookiesThirdParty) {
+      await chrome.privacy.websites.thirdPartyCookiesAllowed.set({ value: false });
+    } else {
+      await chrome.privacy.websites.thirdPartyCookiesAllowed.clear({});
+    }
+  } catch (e) { /* not controllable in this profile */ }
+}
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local") return;
+  if ("cookies" in changes || "cookiesThirdParty" in changes || "history" in changes) {
+    applyPrivacySettings();
+  }
+});
+chrome.runtime.onStartup.addListener(applyPrivacySettings);
+chrome.runtime.onInstalled.addListener(applyPrivacySettings);
+applyPrivacySettings();
+
+function stat(host, counts) {
+  if (!host) return;
+  ask({ op: "stat", host, counts });
+}
+
+async function sweepTrackerCookies(url) {
+  if (!privacy.cookies) return 0;
+  let host;
+  try { host = new URL(url).hostname; } catch { return 0; }
+  const base = host.split(".").slice(-2).join(".");
+  let removed = 0;
+  let cookies = [];
+  try { cookies = await chrome.cookies.getAll({ domain: base }); } catch { return 0; }
+  for (const c of cookies) {
+    if (!TRACKER_COOKIE.test(c.name)) continue;
+    const scheme = c.secure ? "https://" : "http://";
+    const domain = c.domain.startsWith(".") ? c.domain.slice(1) : c.domain;
+    try {
+      await chrome.cookies.remove({ url: scheme + domain + c.path, name: c.name, storeId: c.storeId });
+      removed++;
+    } catch { /* already gone */ }
+  }
+  if (removed) stat(host, { trackers: removed });
+  return removed;
+}
+
+// Network-rule matches are counted by polling rather than by event: the
+// per-request debug event only exists for unpacked extensions, and this is
+// meant to keep counting if it is ever packed.
+let lastMatchTs = Date.now();
+async function countBlockedRequests() {
+  if (!privacy.cookies) return;
+  let info;
+  try {
+    info = await chrome.declarativeNetRequest.getMatchedRules({ minTimeStamp: lastMatchTs + 1 });
+  } catch { return; }
+  const perTab = new Map();
+  for (const m of info.rulesMatchedInfo || []) {
+    lastMatchTs = Math.max(lastMatchTs, m.timeStamp);
+    perTab.set(m.tabId, (perTab.get(m.tabId) || 0) + 1);
+  }
+  for (const [tabId, n] of perTab) {
+    if (tabId < 0) continue;
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      stat(new URL(tab.url).hostname, { trackers: n });
+    } catch { /* tab closed */ }
+  }
+}
+setInterval(countBlockedRequests, 15000);
+
+chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
+  if (info.status !== "complete" || !tab.url || !/^https?:/.test(tab.url)) return;
+  // A beat after load, so cookies set by scripts during load are there to sweep.
+  setTimeout(() => sweepTrackerCookies(tab.url), 3000);
+  countBlockedRequests();
+  // Sent for incognito tabs too, so `omarchy-adblock private on` works without
+  // the popup; the host decides whether to keep it.
+  if (privacy.history || tab.incognito) {
+    ask({ op: "visit", url: tab.url, title: tab.title || "", requested: privacy.history });
+  }
+});
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  const host = msg.host;
+
+  if (msg.type === "consent-result") {
+    stat(host, { [msg.kind === "legal" ? "legal" : "consent"]: msg.count || 1 });
+    if (sender.tab && sender.tab.url) {
+      // What was just declined may already have been set before the click.
+      setTimeout(() => sweepTrackerCookies(sender.tab.url), 1500);
+    }
+    return false;
+  }
+
+  if (msg.type === "consent-classify") {
+    ask({ op: "consent", host, dialog: msg.dialog, buttons: msg.buttons })
+      .then((reply) => sendResponse({ selector: reply.selector || "" }));
+    return true;
+  }
+
+  if (msg.type === "committed") {
+    stat(host, { ads: msg.count || 0 });
+    return false;
+  }
+
+  if (msg.type === "stats") {
+    ask({ op: "stats" }).then(sendResponse);
+    return true;
+  }
+
+  return false;
+});

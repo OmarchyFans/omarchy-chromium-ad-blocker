@@ -20,6 +20,9 @@ Usage: omarchy-adblock <command>
   backend [local|anthropic]
                       Local runs on your GPU and sends nothing off the machine.
   endpoint <url>      Where the local model listens (default http://127.0.0.1:8080)
+  stats [host]        What has been removed: ads, trackers, consent, legal
+  private [on|off]    Always open Chromium in incognito, and keep history here
+  history [search]    Your locally kept history (only recorded in private mode)
   sites               Sites with learned rules, and how many each has
   show <host>         The rules learned for one site
   marked [host]       The ads you marked by hand
@@ -238,6 +241,86 @@ restart)
   sleep 1
   setsid -f chromium >/dev/null 2>&1 || true
   echo "Chromium restarted."
+  ;;
+
+stats)
+  f="$DATA_DIR/stats.json"
+  [[ -f $f ]] || { echo "Nothing removed yet."; exit 0; }
+  python3 - "$f" "${2:-}" <<'PY2'
+import json, sys
+d = json.load(open(sys.argv[1])); host = sys.argv[2]
+kinds = [("ads", "Ads removed"), ("trackers", "Trackers blocked"),
+         ("consent", "Consent dialogs declined"), ("legal", "Legal notices removed")]
+row = d["sites"].get(host) if host else d["totals"]
+if host and not row:
+    print(f"Nothing removed on {host} yet."); sys.exit(0)
+print(host or "All sites")
+for k, label in kinds:
+    print(f"  {label:26} {row.get(k, 0):>8,}")
+if not host:
+    top = sorted(d["sites"].items(), key=lambda kv: -sum(kv[1].get(k, 0) for k, _ in kinds))[:10]
+    if top:
+        print("\nBusiest sites")
+        for h, r in top:
+            print(f"  {h:34} {r.get('ads',0):>5} ads {r.get('trackers',0):>5} trackers "
+                  f"{r.get('consent',0):>3} consent {r.get('legal',0):>3} legal")
+PY2
+  ;;
+
+private)
+  flags="$HOME/.config/chromium-flags.conf"
+  case "${2:-}" in
+    "")
+      if grep -qx -- "--incognito" "$flags" 2>/dev/null; then echo on; else echo off; fi
+      ;;
+    on)
+      grep -qx -- "--incognito" "$flags" 2>/dev/null || echo "--incognito" >>"$flags"
+      cfg_set history true bool
+      cat <<MSG
+Private mode on. Chromium opens in incognito from its next start, and your
+history is kept locally in $DATA_DIR/history.jsonl.
+
+One step only you can do, because Chromium refuses to let a program do it:
+  1. omarchy-adblock restart
+  2. Open chrome://extensions, find "Omarchy Chromium Ad Blocker",
+     open Details, and turn on "Allow in Incognito".
+Until then the blocker does not run in incognito windows at all.
+
+Incognito keeps no logins between sessions. That is the point, and it is why
+this is off unless you turn it on.
+MSG
+      ;;
+    off)
+      if [[ -f $flags ]]; then
+        grep -vx -- "--incognito" "$flags" >"$flags.tmp" && mv "$flags.tmp" "$flags"
+      fi
+      cfg_set history false bool
+      echo "Private mode off. Local history is no longer recorded; what was kept stays until you delete it."
+      ;;
+    *) echo "usage: omarchy-adblock private [on|off]" >&2; exit 1 ;;
+  esac
+  ;;
+
+history)
+  f="$DATA_DIR/history.jsonl"
+  [[ -s $f ]] || { echo "No local history. It is recorded only in private mode."; exit 0; }
+  python3 - "$f" "${2:-}" <<'PY2'
+import json, sys, time
+q = sys.argv[2].lower()
+rows = []
+for line in open(sys.argv[1]):
+    try:
+        r = json.loads(line)
+    except ValueError:
+        continue
+    if q and q not in r["url"].lower() and q not in r.get("title", "").lower():
+        continue
+    rows.append(r)
+for r in rows[-50:]:
+    when = time.strftime("%Y-%m-%d %H:%M", time.localtime(r["ts"]))
+    print(f"{when}  {r.get('title','')[:50]:50}  {r['url'][:80]}")
+print(f"\n{len(rows)} entries" + (f" matching '{sys.argv[2]}'" if q else ""))
+PY2
   ;;
 
 -h | --help | help) usage ;;

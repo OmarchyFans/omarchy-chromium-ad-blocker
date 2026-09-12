@@ -66,9 +66,38 @@
     for (const sel of OMARCHY_PROTECTED) {
       try { if (el.matches(sel)) return true; } catch { /* selector list is ours */ }
     }
+    // Nothing inside a form. An agreement checkbox on a signup or a checkout is
+    // not a popup; hiding it hides the terms without unbinding anyone from them,
+    // and the site binds you on submit either way.
+    if (el.closest("form")) return true;
     // Never hide something wrapping a login or payment field.
     if (el.querySelector('input[type="password"], input[autocomplete*="cc-"]')) return true;
     return false;
+  };
+
+  // Removals, as opposed to marks. Counted only when something actually goes,
+  // so manual mode adds nothing to the totals until Delete is pressed. Batched,
+  // because auto mode commits one mark at a time as a page loads.
+  let committedPending = 0;
+  let committedTimer = null;
+  const countedEls = new WeakSet();
+  const tally = (els) => {
+    let n = 0;
+    for (const el of els) {
+      if (countedEls.has(el)) continue;
+      countedEls.add(el);
+      n++;
+    }
+    if (!n) return;
+    committedPending += n;
+    if (committedTimer) return;
+    committedTimer = setTimeout(() => {
+      const count = committedPending;
+      committedPending = 0;
+      committedTimer = null;
+      chrome.runtime.sendMessage({ type: "committed", host: HOST, count },
+        () => void chrome.runtime.lastError);
+    }, 1500);
   };
 
   const report = () => {
@@ -92,7 +121,10 @@
       markedEls.set(el, selector);
       el.setAttribute(MARK_ATTR, source);
     }
-    if (auto()) commit([selector]);
+    if (auto()) {
+      commit([selector]);
+      tally(nodes.filter((el) => !isProtected(el)));
+    }
     return true;
   };
 
@@ -101,7 +133,10 @@
     marks.set(selector, source);
     markedEls.set(el, selector);
     el.setAttribute(MARK_ATTR, source);
-    if (auto()) commitElement(el, selector);
+    if (auto()) {
+      commitElement(el, selector);
+      tally([el]);
+    }
     return true;
   };
 
@@ -478,9 +513,11 @@
   };
 
   const commitFromChord = () => {
-    const n = litElements().length;
+    const lit = litElements();
+    const n = lit.length;
     for (const el of [...markedEls.keys()]) el.classList.remove("omarchy-ad-lit");
     commitAll();
+    tally(lit);
     restoreZoom();
     chordActive = false;
     if (n) {
@@ -609,6 +646,7 @@
       commitElement(el, sel || "");
     }
     releaseScrollLock();
+    tally([el]);
     exitPicker();
     showHud(
       durable

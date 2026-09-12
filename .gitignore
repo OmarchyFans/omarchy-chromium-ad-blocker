@@ -1,2 +1,4 @@
 *.pem
 __pycache__/
+# Chromium writes its compiled copy of the network rules here on load.
+extension/_metadata/

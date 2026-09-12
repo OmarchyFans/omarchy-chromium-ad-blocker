@@ -1,5 +1,4 @@
-// Popup: the three switches a person actually reaches for, plus a way to throw
-// away what the model learned about a site when it got something wrong.
+// Popup: three opt-ins, the numbers behind them, and the ways to act now.
 
 const $ = (id) => document.getElementById(id);
 
@@ -8,6 +7,8 @@ const registrableHost = (hostname) => {
   return parts.length > 2 ? parts.slice(-2).join(".") : hostname;
 };
 
+const fmt = (n) => (n || 0).toLocaleString();
+
 chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
   let host = "";
   try { host = new URL(tab.url).hostname; } catch { /* chrome:// and friends */ }
@@ -15,14 +16,51 @@ chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
   $("host").textContent = host || "not a web page";
   $("allowHost").textContent = host ? registrableHost(host) : "—";
 
-  const s = await chrome.storage.local.get(["enabled", "ai", "mode", "allowlist"]);
-  const allowlist = s.allowlist || [];
+  const s = await chrome.storage.local.get(
+    ["enabled", "ai", "mode", "cookies", "cookiesThirdParty", "history", "legal", "allowlist"]);
   const allowKey = registrableHost(host);
 
-  $("enabled").checked = s.enabled !== false;
-  $("ai").checked = s.ai !== false;
+  $("ads").checked = s.enabled !== false;
   $("mode").checked = s.mode === "auto";
-  $("allow").checked = allowlist.includes(allowKey);
+  $("ai").checked = s.ai !== false;
+  $("cookies").checked = s.cookies === true;
+  $("cookiesThirdParty").checked = s.cookiesThirdParty === true;
+  $("history").checked = s.history === true;
+  $("legal").checked = s.legal === true;
+  $("allow").checked = (s.allowlist || []).includes(allowKey);
+
+  const syncBodies = () => {
+    $("adsBody").hidden = !$("ads").checked;
+    $("cookiesBody").hidden = !$("cookies").checked;
+    $("legalBody").hidden = !$("legal").checked;
+  };
+  syncBodies();
+
+  // Chromium will not let anything but the person grant incognito access, so
+  // the most this can do is notice it has not been granted and say where.
+  chrome.extension.isAllowedIncognitoAccess((allowed) => {
+    $("incognitoNote").hidden = allowed || !$("history").checked;
+  });
+
+  // ---- numbers
+  let scope = "site";
+  let stats = null;
+  const showStats = () => {
+    const row = !stats ? {} : scope === "site" ? (stats.sites || {})[host] || {} : stats.totals || {};
+    $("sAds").textContent = fmt(row.ads);
+    $("sTrackers").textContent = fmt(row.trackers);
+    $("sConsent").textContent = fmt(row.consent);
+    $("sLegal").textContent = fmt(row.legal);
+    $("scopeSite").setAttribute("aria-pressed", scope === "site");
+    $("scopeAll").setAttribute("aria-pressed", scope === "all");
+  };
+  $("scopeSite").onclick = () => { scope = "site"; showStats(); };
+  $("scopeAll").onclick = () => { scope = "all"; showStats(); };
+  chrome.runtime.sendMessage({ type: "stats" }, (reply) => {
+    void chrome.runtime.lastError;
+    stats = reply && reply.totals ? reply : null;
+    showStats();
+  });
 
   chrome.action.getBadgeText({ tabId: tab.id }, (text) => {
     const n = parseInt(text, 10);
@@ -30,8 +68,8 @@ chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
     if (!n) $("deleteAll").disabled = true;
   });
 
-  // The three ways in. Each one closes the popup, because all of them put
-  // something on the page that the popup would otherwise be covering.
+  // ---- act now. Each closes the popup, since each puts something on the page
+  // the popup would be covering.
   const send = (type) => chrome.tabs.sendMessage(tab.id, { type }, () => {
     void chrome.runtime.lastError;
     window.close();
@@ -40,36 +78,24 @@ chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
   $("preview").onclick = () => send("preview");
   $("pick").onclick = () => send("enter-picker");
 
-  chrome.runtime.sendMessage({ type: "status" }, (reply) => {
-    if (chrome.runtime.lastError || !reply) {
-      $("status").textContent = "Native host not reachable — run install.sh.";
-      return;
-    }
-    const where = reply.backend === "local" ? "Local GPU" : "Claude";
-    if (!reply.ai_ready) {
-      $("status").textContent = reply.backend === "local"
-        ? `No model answering at ${reply.model} — heuristics only`
-        : "No API key — heuristics only";
-    } else if (reply.last_error) {
-      // Better a visible complaint than a model pass quietly doing nothing.
-      $("status").textContent =
-        `${where} · last error: ` + reply.last_error.split("  ").pop();
-    } else {
-      $("status").textContent =
-        `${where} · ${reply.cached_sites} site${reply.cached_sites === 1 ? "" : "s"} learned`;
-    }
-  });
-
-  // Any switch change needs a reload to take effect: the layers that matter run
-  // at document_start, so flipping one mid-page would only half-apply.
+  // ---- settings. Most take effect on reload, because the layers that matter
+  // run at document_start and flipping one mid-page would only half-apply.
   const reload = () => chrome.tabs.reload(tab.id);
-
-  $("enabled").onchange = (e) =>
-    chrome.storage.local.set({ enabled: e.target.checked }, reload);
-  $("ai").onchange = (e) =>
-    chrome.storage.local.set({ ai: e.target.checked }, reload);
-  $("mode").onchange = (e) =>
-    chrome.storage.local.set({ mode: e.target.checked ? "auto" : "manual" }, reload);
+  const bind = (id, key, map = (v) => v, reloadAfter = true) => {
+    $(id).onchange = (e) => {
+      chrome.storage.local.set({ [key]: map(e.target.checked) }, () => {
+        syncBodies();
+        if (reloadAfter) reload();
+      });
+    };
+  };
+  bind("ads", "enabled");
+  bind("mode", "mode", (v) => (v ? "auto" : "manual"));
+  bind("ai", "ai");
+  bind("cookies", "cookies");
+  bind("cookiesThirdParty", "cookiesThirdParty");
+  bind("history", "history", (v) => v, false);
+  bind("legal", "legal");
 
   $("allow").onchange = async (e) => {
     const cur = (await chrome.storage.local.get("allowlist")).allowlist || [];
@@ -83,4 +109,21 @@ chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
     if (!host) return;
     chrome.runtime.sendMessage({ type: "forget", host }, reload);
   };
+
+  chrome.runtime.sendMessage({ type: "status" }, (reply) => {
+    if (chrome.runtime.lastError || !reply) {
+      $("status").textContent = "Native host not reachable — run install.sh.";
+      return;
+    }
+    const where = reply.backend === "local" ? "Local GPU" : "Claude";
+    if (!reply.ai_ready) {
+      $("status").textContent = reply.backend === "local"
+        ? "No local model answering — rules and heuristics only"
+        : "No API key — rules and heuristics only";
+    } else if (reply.last_error) {
+      $("status").textContent = `${where} · last error: ` + reply.last_error.split("  ").pop();
+    } else {
+      $("status").textContent = `${where} ready · ${reply.cached_sites} site${reply.cached_sites === 1 ? "" : "s"} learned`;
+    }
+  });
 });

@@ -1,0 +1,847 @@
+[
+ {
+  "id": 1,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "33across.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 2,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "adform.net"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 3,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "adjust.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 4,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "adnxs.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 5,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "ads-twitter.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 6,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "ads.linkedin.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 7,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "adservice.google.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 8,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "amazon-adsystem.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 9,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "amplitude.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 10,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "analytics.google.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 11,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "analytics.tiktok.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 12,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "api.amplitude.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 13,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "appsflyer.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 14,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "bidswitch.net"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 15,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "branch.io"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 16,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "braze.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 17,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "casalemedia.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 18,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "cdn.segment.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 19,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "chartbeat.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 20,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "chartbeat.net"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 21,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "clarity.ms"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 22,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "connect.facebook.net"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 23,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "crazyegg.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 24,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "criteo.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 25,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "criteo.net"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 26,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "ct.pinterest.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 27,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "doubleclick.net"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 28,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "facebook.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 29,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "fullstory.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 30,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "google-analytics.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 31,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "googleadservices.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 32,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "googlesyndication.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 33,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "googletagmanager.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 34,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "heap.io"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 35,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "heapanalytics.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 36,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "hotjar.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 37,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "hotjar.io"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 38,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "indexww.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 39,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "iterable.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 40,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "kochava.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 41,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "luckyorange.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 42,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "matomo.cloud"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 43,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "media.net"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 44,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "mixpanel.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 45,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "mouseflow.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 46,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "newrelic.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 47,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "onesignal.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 48,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "openx.net"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 49,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "outbrain.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 50,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "parsely.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 51,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "pubmatic.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 52,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "px.ads.linkedin.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 53,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "quantcount.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 54,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "quantserve.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 55,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "rubiconproject.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 56,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "scorecardresearch.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 57,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "segment.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 58,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "segment.io"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 59,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "sharethrough.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 60,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "smartadserver.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 61,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "snap.licdn.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 62,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "statcounter.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 63,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "t.co"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 64,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "taboola.com"
+   ],
+   "domainType": "thirdParty"
+  }
+ },
+ {
+  "id": 65,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "requestDomains": [
+    "teads.tv"
+   ],
+   "domainType": "thirdParty"
+  }
+ }
+]

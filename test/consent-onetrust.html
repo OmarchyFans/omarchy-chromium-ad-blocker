@@ -1,0 +1,18 @@
+<!doctype html><title>onetrust</title><body style="margin:0;font:15px system-ui">
+<main><h1>Article</h1><p>Content.</p></main>
+<div id="onetrust-consent-sdk"><div id="onetrust-banner-sdk"
+  style="position:fixed;bottom:0;left:0;right:0;height:180px;z-index:9999;background:#fff;border-top:1px solid #ccc;padding:20px">
+  We and our partners use cookies to personalise ads.
+  <button id="onetrust-accept-btn-handler">Accept All Cookies</button>
+  <button id="onetrust-pc-btn-handler">Cookie Settings</button>
+  <button id="onetrust-reject-all-handler">Reject All</button>
+</div></div>
+<script>
+ const choose = (v) => { document.documentElement.dataset.consent = v;
+   document.getElementById('onetrust-consent-sdk').remove(); };
+ document.getElementById('onetrust-accept-btn-handler').onclick = () => choose('accepted');
+ document.getElementById('onetrust-reject-all-handler').onclick = () => choose('rejected');
+ document.getElementById('onetrust-pc-btn-handler').onclick = () => document.documentElement.dataset.consent = 'opened-settings';
+</script>
+<script src="http://www.google-analytics.com:8933/tracker.js"></script>
+</body>
