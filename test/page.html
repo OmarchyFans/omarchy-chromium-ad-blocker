@@ -1,0 +1,38 @@
+<!doctype html><html><head><title>Test</title><style>
+ body{margin:0;font:16px system-ui;overflow:hidden}
+ #wall{position:fixed;inset:0;z-index:9999;background:#000d;color:#fff;padding:40px}
+ #nl{position:fixed;bottom:0;left:0;right:0;height:120px;z-index:500;background:#eee}
+ #rail{position:sticky;top:0;width:300px;height:600px;z-index:1200;background:#ddd}
+ #nav{position:fixed;top:0;left:0;right:0;height:56px;z-index:600;background:#333;color:#fff}
+ #login{position:fixed;top:100px;left:100px;width:400px;height:300px;z-index:2000;background:#fff}
+ #late{display:none;position:fixed;inset:0;z-index:8000;background:#111e;color:#fff;padding:60px}
+</style></head><body>
+ <div id="nav">Site navigation — Home · Docs · Pricing</div>
+ <div id="wall">We use cookies and our partners process data. <button>Accept all cookies</button></div>
+ <div id="nl">Subscribe to our newsletter for weekly updates <button>Close</button></div>
+ <aside id="rail"><iframe src="about:blank"></iframe><iframe src="about:blank"></iframe></aside>
+ <div id="login"><form><input type="password"><button>Sign in</button></form></div>
+ <div id="late">Subscribe to continue reading this article <button>No thanks</button></div>
+ <ins class="adsbygoogle" style="display:block;height:90px">ad</ins>
+ <div class="sponsored-box" style="height:100px">Sponsored content</div>
+ <main><h1>Article</h1><p>Real content.</p></main>
+ <img src="/slow.gif">
+ <script>
+  setTimeout(()=>{document.getElementById("late").style.display="block"},2000)
+  // Test harness: report the visible/hidden state of every interesting node.
+  window.__state = () => {
+    const o = {};
+    for (const id of ["nav","wall","nl","late","login","rail"]) {
+      const el = document.getElementById(id);
+      o[id] = el ? (getComputedStyle(el).display === "none" ? "hidden" : "visible") : "gone";
+    }
+    o.ads = getComputedStyle(document.querySelector("ins.adsbygoogle")).display === "none" ? "hidden":"visible";
+    o.marked = document.querySelectorAll("[data-omarchy-ad]").length;
+    o.lit = document.querySelectorAll(".omarchy-ad-lit").length;
+    o.zoom = document.body.style.zoom || "none";
+    o.hud = (document.getElementById("omarchy-ad-hud")||{}).textContent || "";
+    o.main = getComputedStyle(document.querySelector("main")).display;
+    return o;
+  };
+ </script>
+</body></html>
