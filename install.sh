@@ -133,7 +133,7 @@ say "Registered the native messaging host for ${#BROWSER_DIRS[@]} browser profil
 edit_flags() {
   local file="$1"
   python3 - "$file" "$EXT_DIR" <<'PY'
-import pathlib, sys
+import os, pathlib, sys
 
 path, ext = pathlib.Path(sys.argv[1]), sys.argv[2]
 lines = path.read_text().splitlines() if path.is_file() else []
@@ -141,10 +141,19 @@ lines = path.read_text().splitlines() if path.is_file() else []
 for i, line in enumerate(lines):
     if line.startswith("--load-extension="):
         paths = [p for p in line.split("=", 1)[1].split(",") if p]
-        if ext in paths:
+        # Drop paths that no longer exist. Moving or renaming this repo would
+        # otherwise leave its old path in the flag forever, and Chromium refuses
+        # to start cleanly with an extension directory it cannot read. Omarchy's
+        # own entries live in /usr/share and are always present.
+        stale = [p for p in paths if not os.path.isdir(p)]
+        paths = [p for p in paths if p not in stale]
+        if ext in paths and not stale:
             sys.exit(0)
-        paths.append(ext)
+        if ext not in paths:
+            paths.append(ext)
         lines[i] = "--load-extension=" + ",".join(paths)
+        if stale:
+            print("dropped stale: " + ", ".join(stale), file=sys.stderr)
         break
 else:
     lines.append("--load-extension=" + ext)

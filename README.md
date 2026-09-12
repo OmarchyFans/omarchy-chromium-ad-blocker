@@ -1,4 +1,4 @@
-# Omarchy Ad Blocker (AI)
+# omarchy-chromium-ad-blocker
 
 Safari on iOS lets you sweep the ads and overlays off a page you are reading.
 This is that, for Omarchy's Chromium — except the last step is a model instead
@@ -28,8 +28,8 @@ Layers 1 and 2 work with no API key at all, and already handle most cookie walls
 ## Install
 
 ```bash
-git clone https://github.com/<you>/omarchy-adblock-ai.git ~/Work/omarchy-adblock-ai
-cd ~/Work/omarchy-adblock-ai
+git clone https://github.com/OmarchyFans/omarchy-chromium-ad-blocker.git
+cd omarchy-chromium-ad-blocker
 ./install.sh
 omarchy-adblock key sk-ant-...      # optional — enables layer 3
 omarchy-adblock restart
