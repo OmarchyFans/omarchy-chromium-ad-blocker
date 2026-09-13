@@ -212,7 +212,7 @@ Without asking, it registers the native messaging host for Chromium (and for
 Chrome, Brave or Edge if they are set up), and creates its own settings in
 `~/.config/omarchy-adblock` and cache in `~/.local/share/omarchy-adblock`.
 `./install.sh --yes` answers yes to all three. The default install adds **no
-Python packages** and runs no `sudo`; the local backend speaks OpenAI-compatible
+Python packages** and needs no root access; the local backend speaks OpenAI-compatible
 HTTP from the standard library. Only `--with-anthropic` downloads anything, the
 Anthropic SDK into a virtualenv in the cache folder.
 
