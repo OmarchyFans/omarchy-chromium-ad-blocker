@@ -1,0 +1,29 @@
+<!doctype html><title>offers</title>
+<body style="margin:0;font:15px system-ui">
+<header id="siteheader" style="position:sticky;top:0;z-index:9999999;height:80px;background:#fff;border-bottom:1px solid #ccc">
+  <div>🏈 Draft. Trade. Win. Shop the best deals</div>
+  <nav><a href="#">U.S.</a> <a href="#">Politics</a> <a href="#">Sports</a> <a href="#">Money</a> <a href="#">Travel</a></nav>
+</header>
+<main><h1>Front page</h1>
+  <script>for (let i = 0; i < 80; i++) document.write(`<p>Story ${i}.</p>`);</script>
+</main>
+<script>
+  window.addEventListener("load", () => {
+    // USA Today's shape: an empty full-screen layer, a close button, and the
+    // offer itself in a frame from an overlay service.
+    const oy = document.createElement("div");
+    oy.id = "offer_overlay";
+    oy.style.cssText = "position:fixed;left:50%;top:15%;width:40%;height:40%;z-index:2147483647;background:#fff";
+    oy.innerHTML = `<button class="xbtn" aria-label="Close">×</button>
+      <iframe src="http://cm.offers.example:8933/page.html?o=/overlay/entrance-082626" style="width:100%;height:90%;border:0"></iframe>`;
+    document.body.appendChild(oy);
+
+    // A slide-in that is empty when inserted and says what it is a moment later.
+    const slide = document.createElement("div");
+    slide.id = "offer_slide";
+    slide.style.cssText = "position:fixed;right:16px;bottom:16px;width:320px;height:120px;z-index:50;background:#fff;border:1px solid #999";
+    document.body.appendChild(slide);
+    setTimeout(() => { slide.textContent = "Get unlimited digital access for $1/month. Limited time."; }, 2500);
+  });
+</script>
+</body>

@@ -78,6 +78,11 @@
     // not a popup; hiding it hides the terms without unbinding anyone from them,
     // and the site binds you on submit either way.
     if (el.closest("form")) return true;
+    // The site's own header and navigation, and anything holding them. A sticky
+    // header with a promo strip in it reads as a banner ad to the model; hiding
+    // it takes the whole site's navigation with it.
+    if (el.matches('header, nav, [role="banner"], [role="navigation"]')) return true;
+    if (el.querySelector('nav, [role="navigation"]')) return true;
     // Never a bot check, or anything wrapping one (defined in consent.js).
     if (globalThis.OMARCHY_IS_CHALLENGE && globalThis.OMARCHY_IS_CHALLENGE(el)) return true;
     // Never hide something wrapping a login or payment field.
@@ -275,6 +280,19 @@
   const INTERRUPT_WORDS =
     /\b(accept (all )?cookies?|cookie (policy|consent|settings)|consent|gdpr|subscribe|newsletter|sign up for|create (a )?free account|allow notifications|disable your ad ?blocker|turn off your ad ?blocker|continue reading|you have \d+ free|special offer|limited time)\b/i;
 
+  // Sales offers are interruptions too: a subscription pitch, a discount, an app
+  // install prompt. Only ever tested against fixed or sticky layers stacked over
+  // the page, never against article text.
+  const OFFER_WORDS =
+    /\b((exclusive|special|limited[- ]time|introductory|welcome) offer|subscribe (now|today)|unlimited (digital )?access|(start|begin) (your )?(free )?trial|free trial|\d+% off|save \d+%|per (month|week|year)|\$\d+(\.\d\d)?( ?\/ ?| (for|a|per) )(mo|month|week|wk|year|yr)|get the app|download (our|the) app|open in (the )?app|become a (member|subscriber)|already a subscriber|sign in to (continue|keep reading)|register to (continue|keep reading)|unlock (this|all|full)|claim (your|this) (offer|deal|discount))\b/i;
+
+  // An offer whose content lives in a frame shows the page no words at all, so
+  // the frame's address is the tell: overlay and offer services, paywalls.
+  const OFFER_FRAME =
+    /\/overlay\/|\/offers?\b|paywall|regwall|\/subscribe|subscription|\/promo|tinypass\.com|piano\.io|zephr|poool\.fr|pelcro|\/meter\b|cxense/i;
+  const hasOfferFrame = (el) =>
+    [...el.querySelectorAll("iframe[src]")].some((f) => OFFER_FRAME.test(f.src));
+
   const CLOSE_WORDS = /\b(close|dismiss|no thanks|maybe later|not now|×|✕)\b/i;
 
   const describe = (el) => {
@@ -316,7 +334,13 @@
         CONSENT_SHAPED.test(text)) {
       return null; // not settled — consent.js gets the first go
     }
-    const interrupts = INTERRUPT_WORDS.test(text);
+    // Still empty: the offer or dialog that goes here has not rendered yet.
+    // Leave it unsettled so the next pass sees what it becomes.
+    if (!text.trim() && !el.querySelector("iframe,img,video,svg,canvas")) {
+      return null;
+    }
+    const offer = OFFER_WORDS.test(text) || hasOfferFrame(el);
+    const interrupts = INTERRUPT_WORDS.test(text) || offer;
     const hasClose = CLOSE_WORDS.test(text) ||
       !!el.querySelector('[aria-label*="close" i],[class*="close" i],[data-dismiss]');
 
@@ -326,6 +350,9 @@
 
     // A banner pinned to an edge that is asking for something.
     if (interrupts && z >= 10 && (coverage > 0.06 || hasClose)) return "hide";
+    // A sales pitch pinned over the page is an interruption at any size worth
+    // noticing; a corner "subscribe for $1" box rarely bothers with a close button.
+    if (offer && z >= 10 && coverage > 0.02) return "hide";
 
     // Tall, high, and mostly links or an iframe: an ad rail rather than a UI bar.
     if (z >= 1000 && coverage > 0.15) return "ask";

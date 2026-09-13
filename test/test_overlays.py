@@ -14,7 +14,7 @@ shutil.copy(os.path.expanduser("~/.config/chromium/NativeMessagingHosts/com.omar
 
 # Non-private names for every host, so neither the host's loopback exclusion
 # nor third-party detection is fooled by everything being 127.0.0.1.
-HOSTS = ["site.adtest.example", "geo.captcha-delivery.com"]
+HOSTS = ["site.adtest.example", "geo.captcha-delivery.com", "cm.offers.example"]
 proc = subprocess.Popen([
     "chromium", "--headless=new", "--no-sandbox", "--disable-gpu",
     f"--user-data-dir={PROF}", f"--load-extension={EXT}",
@@ -63,6 +63,15 @@ try:
     print("   ", st)
     check(st["container"] != "none" and st["frame"] != "none", "the challenge stays, so it can be passed")
     check("blur" in st["backdrop"] and not st["marked"], "nothing about it is marked or un-blurred")
+    print("\n[sales offers, and the site's own header]")
+    ws = goto(ws, "offer.html", 9)
+    st = cdp.js(ws, """(() => { const d = (id) => getComputedStyle(document.getElementById(id)).display;
+        return {frameOffer: d('offer_overlay'), lateOffer: d('offer_slide'), header: d('siteheader'),
+                headerMarked: document.getElementById('siteheader').hasAttribute('data-omarchy-ad')}; })()""")
+    print("   ", st)
+    check(st["frameOffer"] == "none", "an offer that lives in an overlay frame is removed")
+    check(st["lateOffer"] == "none", "an offer box that fills in after it appears is removed")
+    check(st["header"] != "none" and not st["headerMarked"], "the site's header and navigation stay, promo strip and all")
 finally:
     proc.terminate()
 

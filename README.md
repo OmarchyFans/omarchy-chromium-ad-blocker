@@ -21,6 +21,13 @@ The popup shows what each has removed, for the current site and for all time.
 | **Point at one** | Press **P** during the chord, or *Pick one* in the popup. Click an ad and it goes, and it becomes a permanent note about that site in your own hand. |
 | **Never ask again** | Turn on automatic removal and ads go as each page loads, before they paint. |
 
+Popups count as ads: newsletter walls, "turn off your ad blocker", and sales
+offers. An offer is recognised by its pitch ("unlimited digital access for
+$1/month", "start your free trial", "get the app") or, when the pitch lives in a
+frame the page cannot read, by the frame's address: overlay services, paywalls
+and offer platforms. The site's own header and navigation are never removed,
+even with a promo strip in them.
+
 ## 2 · Block tracking cookies
 
 It answers consent dialogs rather than hiding them. A hidden cookie wall leaves
