@@ -4,6 +4,10 @@
 
 set -euo pipefail
 
+# Only system directories: nothing this script runs (python3, curl, pgrep,
+# chromium) can be shadowed by an executable dropped earlier on someone's PATH.
+export PATH="/usr/local/bin:/usr/bin:/bin"
+
 CONFIG_DIR="$HOME/.config/omarchy-adblock"
 CONFIG="$CONFIG_DIR/config.json"
 DATA_DIR="$HOME/.local/share/omarchy-adblock"
@@ -15,6 +19,7 @@ usage() {
 Usage: omarchy-adblock <command>
 
   status              What is installed, configured and learned
+  dashboard           Status, statistics and incognito access, then wait (the bar button opens this)
   mode [manual|auto]  Manual: nothing goes until you press the chord (default).
                       Auto: ads are removed as each page loads.
   backend [local|anthropic]
@@ -367,6 +372,17 @@ MSG
       ;;
     *) echo "usage: omarchy-adblock private [on|off]" >&2; exit 1 ;;
   esac
+  ;;
+
+dashboard)
+  self="${BASH_SOURCE[0]}"
+  /usr/bin/bash "$self" status || true
+  echo
+  /usr/bin/bash "$self" stats || true
+  echo
+  /usr/bin/bash "$self" incognito || true
+  echo
+  read -r -p "Press Enter to close. " _ || true
   ;;
 
 incognito)

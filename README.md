@@ -1,7 +1,41 @@
-# omarchy-chromium-ad-blocker
+# Chromium Ad Blocker for Omarchy
 
-Filter lists go stale the week they ship. This reads the page instead, on a
-model running on your own GPU, and never has to phone anyone to do it.
+An Omarchy plugin that cleans up the web in Chromium. It removes ads, popups and
+sales offers, says no to tracking-cookie dialogs, blocks trackers, and clears
+legal popups without agreeing to anything. Filter lists go stale the week they
+ship, so this reads the page instead: fast rules and page heuristics act
+instantly, and an optional model on your own GPU classifies the rest without
+sending the page anywhere.
+
+## Features
+
+- **Removes ads and popups.** Ad slots, sticky rails, newsletter walls, "turn
+  off your ad blocker" overlays, and sales offers like "unlimited access for
+  $1/month", including offers drawn inside frames the page cannot read.
+- **Hold, look, delete.** Hold **Ctrl+Alt** to zoom out and see every ad
+  outlined, press **Delete** to remove them all, or turn on automatic removal.
+- **Click to remove.** Point at anything the blocker missed; it goes, and it is
+  remembered for that site.
+- **Declines cookie consent for you.** Presses Reject on OneTrust, Cookiebot,
+  Didomi, Quantcast, Usercentrics, Sourcepoint, TrustArc and more. With no
+  reject button, it opens the privacy choices, switches everything off that can
+  be, and saves, never "Accept" or "Continue".
+- **Blocks trackers and sends Global Privacy Control.** 68 third-party tracker
+  hosts are blocked, tracker cookies are cleared by name, and every site gets
+  the legal "do not sell or share my data" signal.
+- **Clears legal popups without agreeing.** "Agree to continue" modals, like
+  cnn.com's, are removed and the page scrolls again. Agreement checkboxes in
+  forms you fill in are never touched.
+- **Never breaks the page.** Site headers and navigation, login and payment
+  fields, and bot checks such as DataDome or Cloudflare are never hidden, and a
+  removed popup's scroll lock and blur go with it.
+- **Private browsing with local history.** Always open Chromium in incognito,
+  with the blocker running there and your history kept on your own disk.
+- **Statistics.** Ads, trackers, consent dialogs and legal notices removed, per
+  site and in total, in the extension popup, a bar button and the terminal.
+- **Local first.** The model runs on your GPU through any OpenAI-compatible
+  server. Anthropic's Claude Haiku is an opt-in alternative for machines
+  without one.
 
 Three opt-ins, each independent:
 
@@ -156,28 +190,53 @@ fixed header does not cost a pass on every page load.
 
 ## Install
 
+As an Omarchy plugin, with a bar button that shows what has been removed:
+
 ```bash
-git clone https://github.com/OmarchyFans/omarchy-chromium-ad-blocker.git
-cd omarchy-chromium-ad-blocker
+omarchy plugin add https://github.com/OmarchyFans/omarchy-chromium-ad-blocker --enable
+cd ~/.config/omarchy/plugins/fans.omarchy.chromium-ad-blocker
 ./install.sh
-omarchy-adblock restart
+bin/omarchy-adblock restart
 ```
 
-The default install adds **no Python packages**. The local backend speaks
-OpenAI-compatible HTTP from the standard library.
+`omarchy plugin add` installs only the bar button. `install.sh` wires up the
+blocker itself, and asks before each change to something that is yours:
 
-`install.sh` is idempotent and safe to re-run. It derives the extension ID from
-the public key pinned in `manifest.json`, adds the extension to the *existing*
-`--load-extension=` line in `~/.config/chromium-flags.conf` (Chromium honours
-only the last such flag, so appending a second would silently unload Omarchy's
-own extensions), registers the native messaging host for Chromium, Chrome, Brave
-and Edge, and installs a `post-update.d` hook that re-applies both after an
-Omarchy update rewrites the flags file.
+| Asked first | What it does |
+|---|---|
+| **Chromium's startup flags** | Adds the extension to the *existing* `--load-extension=` line in `~/.config/chromium-flags.conf`, after a timestamped backup. Chromium honours only the last such flag, so appending a second would silently unload Omarchy's own extensions. Say no and it prints how to load the extension by hand. |
+| **Update hook** | A `post-update.d` hook that re-applies only that flag and the native host after an Omarchy update rewrites the flags file. |
+| **The command** | Links `omarchy-adblock` into `~/.local/bin`. Everything works without it from `bin/omarchy-adblock`. |
+
+Without asking, it registers the native messaging host for Chromium (and for
+Chrome, Brave or Edge if they are set up), and creates its own settings in
+`~/.config/omarchy-adblock` and cache in `~/.local/share/omarchy-adblock`.
+`./install.sh --yes` answers yes to all three. The default install adds **no
+Python packages** and runs no `sudo`; the local backend speaks OpenAI-compatible
+HTTP from the standard library. Only `--with-anthropic` downloads anything, the
+Anthropic SDK into a virtualenv in the cache folder.
+
+Without the plugin system, clone anywhere and run `./install.sh` there.
 
 Restart Chromium **completely** afterwards. A new window is not enough: the
 flags and the host manifest are only read at browser startup.
 
-`./uninstall.sh` reverses everything; add `--purge` to drop the learned rules too.
+**Requirements:** Chromium (ships with Omarchy), `python3`, `openssl`.
+Optional: a local OpenAI-compatible model server, see below.
+
+## Remove
+
+```bash
+cd ~/.config/omarchy/plugins/fans.omarchy.chromium-ad-blocker
+./uninstall.sh
+omarchy plugin disable fans.omarchy.chromium-ad-blocker
+omarchy plugin remove fans.omarchy.chromium-ad-blocker
+```
+
+`uninstall.sh` takes back the flag, private mode's `--incognito`, the native host
+manifests, the update hook and the command link. Learned rules, statistics and
+local history stay in `~/.local/share/omarchy-adblock` for a reinstall; add
+`--purge` to delete them along with the settings. Restart Chromium to finish.
 
 ## The model
 
