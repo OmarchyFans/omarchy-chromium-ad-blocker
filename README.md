@@ -44,7 +44,14 @@ page. Answering "no" is what actually stops it.
   model thought.
 - **No reject button on the first screen?** It opens the preferences, switches
   off every control the site lets you switch off, and saves. Controls the site
-  has locked on are the strictly necessary ones, so they stay on.
+  has locked on are the strictly necessary ones, so they stay on. That includes
+  US banners whose only other button is "Continue": on cnbc.com it opens "Your
+  Privacy Choices", turns off sale and sharing, and confirms.
+- **Late banners are still answered.** A banner that arrives after a slow
+  geolocation lookup gets the same treatment, however long after load.
+- **An ad rule never hides a consent banner.** With this opt-in on, a rule the
+  model learned for a site is held back from the site's consent platform, so the
+  banner stays up long enough to be declined.
 - **Global Privacy Control** is sent on every request (`Sec-GPC: 1`) and
   answered to scripts that ask (`navigator.globalPrivacyControl`). It is the
   legal "do not sell or share my data" signal, and consent platforms record it.

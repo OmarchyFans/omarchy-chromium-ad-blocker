@@ -15,7 +15,7 @@ shutil.copy(os.path.expanduser("~/.config/chromium/NativeMessagingHosts/com.omar
 
 # Non-private names for every host, so neither the host's loopback exclusion
 # nor third-party detection is fooled by everything being 127.0.0.1.
-HOSTS = ["site.adtest.example", "www.google-analytics.com"]
+HOSTS = ["site.adtest.example", "late.adtest.example", "www.google-analytics.com"]
 proc = subprocess.Popen([
     "chromium", "--headless=new", "--no-sandbox", "--disable-gpu",
     f"--user-data-dir={PROF}", f"--load-extension={EXT}",
@@ -84,20 +84,43 @@ try:
     check(st["analytics"] == "false" and st["ads"] == "false", "every switch that can be turned off is off")
     check(st["necessary"] == "true", "the strictly necessary one, which the site locked on, is left on")
 
+    print("\n[US banner with no reject, arriving after every timer: the cnbc.com shape]")
+    ws = goto(ws, "consent-onetrust-us.html", 15)
+    st = cdp.js(ws, """(() => { const d = document.documentElement.dataset;
+        return {consent: d.consent || 'none', necessary: d.necessary, sale: d.sale, targeting: d.targeting,
+                banner: !!document.getElementById('onetrust-banner-sdk')}; })()""")
+    print("   ", st)
+    check(st["consent"] == "saved", "opens Your Privacy Choices and confirms, never Continue")
+    check(st.get("sale") == "false" and st.get("targeting") == "false", "sale of data and targeted ads are switched off")
+    check(st.get("necessary") == "true" and not st["banner"], "the locked necessary cookies stay, and the banner is gone")
+
     print("\n[automatic ad removal on too, banner arrives late]")
     cdp.cjs(ws, cdp.isolated_context(ws), "chrome.storage.local.set({mode:'auto'}).then(()=>1)")
     time.sleep(1)
-    ws = goto(ws, "consent-late.html", 9)
+    # A learned rule for the banner itself, the way an older build or opt-in 2
+    # being off could have cached one, next to a learned rule for a real ad. On
+    # its own host: the worker keeps a visited site's rules in memory.
+    cache = os.path.expanduser("~/.local/share/omarchy-adblock/rules/late.adtest.example.json")
+    json.dump({"version": 1, "host": "late.adtest.example", "model": "test", "updated": int(time.time()),
+               "block": ["#onetrust-banner-sdk", "#learned-ad"],
+               "asked": ["#onetrust-banner-sdk", "#learned-ad"]}, open(cache, "w"))
+    ws.call("Page.enable")
+    ws.call("Page.navigate", {"url": "http://late.adtest.example:8933/consent-late.html"})
+    time.sleep(1.5)
+    ws = cdp.attach(PORT, match="consent-late.html")
+    time.sleep(9)
     before_ads = json.loads(open(os.path.expanduser(
-        "~/.local/share/omarchy-adblock/stats.json")).read())["sites"].get("site.adtest.example", {}).get("ads", 0)
+        "~/.local/share/omarchy-adblock/stats.json")).read())["sites"].get("late.adtest.example", {}).get("ads", 0)
     st = cdp.js(ws, """({consent: document.documentElement.dataset.consent || 'none',
         banner: !!document.getElementById('onetrust-banner-sdk')})""")
     print("   ", st)
     check(st["consent"] == "rejected",
           "the consent dialog is answered, not hidden by the ad layer getting there first")
+    check(cdp.js(ws, "getComputedStyle(document.getElementById('learned-ad')).display") == "none",
+          "a learned ad rule still hides its ad, while a learned rule for the banner is held back")
     time.sleep(2.5)
     after_ads = json.loads(open(os.path.expanduser(
-        "~/.local/share/omarchy-adblock/stats.json")).read())["sites"].get("site.adtest.example", {}).get("ads", 0)
+        "~/.local/share/omarchy-adblock/stats.json")).read())["sites"].get("late.adtest.example", {}).get("ads", 0)
     check(after_ads == before_ads, "and a declined dialog is not also counted as an ad")
     cdp.cjs(ws, cdp.isolated_context(ws), "chrome.storage.local.set({mode:'manual'}).then(()=>1)")
     time.sleep(1)
@@ -155,7 +178,7 @@ try:
     raw = open(os.path.expanduser("~/.local/share/omarchy-adblock/stats.json")).read()
     site = json.loads(raw)["sites"].get("site.adtest.example", {})
     print("   ", {k: site.get(k, 0) for k in ("ads", "trackers", "consent", "legal")})
-    check(site.get("consent", 0) >= 3, "three consent dialogs declined are counted")
+    check(site.get("consent", 0) >= 4, "four consent dialogs declined are counted")
     check(site.get("legal", 0) >= 1, "the removed legal notice is counted")
 finally:
     proc.terminate()

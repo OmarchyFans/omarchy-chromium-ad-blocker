@@ -23,7 +23,6 @@
                "opacity:0!important;pointer-events:none!important;";
 
   let settings = { enabled: true, ai: true, mode: "manual", allowlist: [], cookies: false };
-  const startedAt = Date.now();
   // With opt-in 2 on, a consent dialog is consent.js's to answer. Hiding it here
   // first would leave the site with no answer — it re-prompts next page — and
   // count a decline as an ad. So consent-shaped overlays wait a few seconds for
@@ -31,6 +30,7 @@
   const CONSENT_SHAPED =
     /\b(cookies?|consent|gdpr|ccpa|your privacy|privacy preferences|legitimate interest|tracking)\b/i;
   const CONSENT_GRACE_MS = 6000;
+  const consentSeenAt = new WeakMap();
   let aiPassDone = false;
   // What this site has already been asked about arrives over a round trip, and a
   // fast page finishes its first scan before it lands. Asking then would re-ask
@@ -158,9 +158,17 @@
     return true;
   };
 
+  // With opt-in 2 on, a learned rule never reaches a consent platform's own
+  // banner, even one inserted long after the rule was applied: it has to stay
+  // visible to be answered. Rules the person picked by hand are left as they are.
   const rebuildStyle = () => {
-    styleEl().textContent =
-      [...committed].map((s) => `${s}{${HIDE}}`).join("\n");
+    const consent = settings.cookies && globalThis.OMARCHY_CONSENT_UI_SELECTOR;
+    styleEl().textContent = [...committed].map((s) => {
+      const learned = !["user", "static"].includes(marks.get(s));
+      return consent && learned
+        ? `:is(${s}):not(${consent}):not(:is(${consent}) *):not(:has(${consent})){${HIDE}}`
+        : `${s}{${HIDE}}`;
+    }).join("\n");
   };
 
   const commit = (selectors) => {
@@ -207,6 +215,9 @@
 
   // A cached or model-supplied rule is plain CSS, so isProtected never gets to
   // run on what it matches. Re-check once the DOM exists.
+  const isConsentUi = (el) =>
+    !!(globalThis.OMARCHY_IS_CONSENT_UI && globalThis.OMARCHY_IS_CONSENT_UI(el));
+
   const auditRemoteRules = () => {
     const wrong = [];   // the rule itself is bad — unlearn the site
     const tooWide = []; // the rule is probably fine, this page just has many
@@ -216,6 +227,9 @@
       try { nodes = document.querySelectorAll(sel); } catch { continue; }
       if (!nodes.length) continue;
       if ([...nodes].some(isProtected)) wrong.push(sel);
+      // A consent banner learned as an ad, before opt-in 2 was on or by an older
+      // build: skip it so it can be answered, without unlearning the site.
+      else if (settings.cookies && [...nodes].some(isConsentUi)) tooWide.push(sel);
       else if (nodes.length > 8) tooWide.push(sel);
     }
     if (!wrong.length && !tooWide.length) return;
@@ -330,8 +344,15 @@
     const z = parseInt(cs.zIndex, 10) || 0;
     const coverage = (r.width * r.height) / (innerWidth * innerHeight);
     const text = (el.innerText || "").slice(0, 2000);
-    if (settings.cookies && Date.now() - startedAt < CONSENT_GRACE_MS &&
-        CONSENT_SHAPED.test(text)) {
+    // The grace runs from when this dialog first showed up, not from page load:
+    // a banner that arrives ten seconds in still gets its chance to be answered.
+    if (settings.cookies && CONSENT_SHAPED.test(text) && !consentSeenAt.has(el)) {
+      consentSeenAt.set(el, Date.now());
+      // Look again when its grace is up, in case the page is quiet by then.
+      setTimeout(() => { try { scan(); } catch { /* never break the page */ } }, CONSENT_GRACE_MS + 250);
+    }
+    if (settings.cookies && consentSeenAt.has(el) &&
+        Date.now() - consentSeenAt.get(el) < CONSENT_GRACE_MS) {
       return null; // not settled — consent.js gets the first go
     }
     // Still empty: the offer or dialog that goes here has not rendered yet.
@@ -383,6 +404,11 @@
       settled.add(el);
 
       if (verdict === "hide") {
+        const sel = selectorFor(el);
+        if (sel) markElement(el, sel, "heuristic");
+      } else if (verdict === "ask" && settings.cookies && isConsentUi(el)) {
+        // Past its grace and still unanswered: hide it for this visit only. No
+        // model call and no cached rule, so next visit consent.js answers it.
         const sel = selectorFor(el);
         if (sel) markElement(el, sel, "heuristic");
       } else if (verdict === "ask" && settings.ai) {

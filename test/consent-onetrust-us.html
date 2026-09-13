@@ -1,0 +1,40 @@
+<!doctype html><title>onetrust us</title><body style="margin:0;font:15px system-ui">
+<main><h1>Markets</h1><script>for (let i = 0; i < 40; i++) document.write(`<p>Story ${i}.</p>`);</script></main>
+<script>
+ // cnbc.com's shape: a US OneTrust banner with no reject button, only "Your
+ // Privacy Choices" and "Continue", arriving after a slow geolocation lookup —
+ // later than every fixed timer in consent.js.
+ const d = document.documentElement.dataset;
+ setTimeout(() => {
+   const b = document.createElement('div');
+   b.id = 'onetrust-banner-sdk';
+   b.style.cssText = 'position:fixed;left:0;right:0;bottom:0;height:170px;z-index:2147483645;background:#fff;padding:16px';
+   b.innerHTML = `<p>This site is now part of Example. By continuing, you agree to our <a href="#">Terms</a>.
+     You also acknowledge that our updated <a href="#">Privacy Policy</a> applies. We and our partners also use tools like cookies. See <a href="#">Your Rights</a>.</p>
+     <button id="onetrust-pc-btn-handler">Your Privacy Choices</button> <button id="onetrust-accept-btn-handler">Continue</button>`;
+   document.body.appendChild(b);
+   document.getElementById('onetrust-accept-btn-handler').onclick = () => { d.consent = 'accepted'; b.remove(); };
+   document.getElementById('onetrust-pc-btn-handler').onclick = () => {
+     d.consent = 'opened';
+     const pc = document.createElement('div');
+     pc.id = 'onetrust-pc-sdk';
+     pc.style.cssText = 'position:fixed;top:10%;left:25%;width:50%;height:60%;z-index:2147483647;background:#fff;padding:16px';
+     pc.innerHTML = `<h2>Your Privacy Choices</h2><p>Manage how we use cookies and share personal data.</p>
+       <label><input type="checkbox" id="c-necessary" checked disabled> Strictly necessary cookies</label><br>
+       <label><input type="checkbox" id="c-sale" checked> Sale or sharing of personal data</label><br>
+       <label><input type="checkbox" id="c-targeting" checked> Targeted advertising</label><br>
+       <div class="ot-filter"><button id="filter-apply">Apply</button></div>
+       <button class="save-preference-btn-handler">Confirm My Choice</button>`;
+     document.body.appendChild(pc);
+     pc.querySelector('#filter-apply').onclick = () => { d.filterApplied = 'yes'; };
+     pc.querySelector('.save-preference-btn-handler').onclick = () => {
+       d.consent = 'saved';
+       d.necessary = document.getElementById('c-necessary').checked;
+       d.sale = document.getElementById('c-sale').checked;
+       d.targeting = document.getElementById('c-targeting').checked;
+       pc.remove(); b.remove();
+     };
+   };
+ }, 7000);
+</script>
+</body>

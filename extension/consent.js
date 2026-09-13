@@ -31,6 +31,26 @@ globalThis.OMARCHY_IS_CHALLENGE = (el) => {
   } catch { return false; }
 };
 
+// Consent platforms' own containers. With opt-in 2 on, these are consent.js's
+// to answer, so the ad layer never caches a rule for one or asks the model about
+// one: a cached rule would hide the banner at the next page load, before it can
+// be answered, and the site would never hear "no". Shared with content.js.
+const OMARCHY_CONSENT_UI = [
+  '[id^="onetrust"]', '#ot-sdk-btn-floating', '[id^="CybotCookiebot"]', '[id^="didomi"]',
+  '.qc-cmp2-container', '[id^="qc-cmp2"]', '[id^="sp_message"]', '[class*="sp_message_container"]',
+  '#usercentrics-root', '#usercentrics-cmp-ui', '[id^="truste"]', '#consent_blackbar', '.truste_overlay',
+  '.cky-consent-container', '.cky-modal', '.osano-cm-window', '.osano-cm-dialog', '#termly-code-snippet-support',
+  '.cmplz-cookiebanner', '#klaro', '.klaro', '#iubenda-cs-banner', '[id^="BorlabsCookie"]',
+  '.cookiefirst-root', '.axeptio_widget', '#axeptio_overlay', '.fc-consent-root', '#cmpbox', '#cmpwrapper',
+].join(",");
+globalThis.OMARCHY_CONSENT_UI_SELECTOR = OMARCHY_CONSENT_UI;
+globalThis.OMARCHY_IS_CONSENT_UI = (el) => {
+  try {
+    return !!el && !!el.matches && (el.matches(OMARCHY_CONSENT_UI) || !!el.closest(OMARCHY_CONSENT_UI) ||
+      !!el.querySelector(OMARCHY_CONSENT_UI));
+  } catch { return false; }
+};
+
 // A modal locks the page behind it, and removing the modal without the lock
 // leaves a page that will not scroll. Sites lock in two ways: overflow:hidden on
 // html/body, or body{position:fixed; top:-<scrollY>px; height:<viewport>} so the
@@ -278,9 +298,12 @@ globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
   // Switches the site has disabled are the strictly necessary ones, so leaving
   // disabled controls alone is exactly "except those required to use the site".
   const SETTINGS_TEXT =
-    /^\s*(manage( (options|preferences|settings|cookies))?|customi[sz]e|cookie settings|settings|preferences|more options|options|let me choose|show purposes)\s*$/i;
+    /^\s*(manage( (my )?(options|preferences|settings|cookies|choices|privacy|consent))?|customi[sz]e|cookie (settings|preferences|choices)|settings|preferences|more options|options|let me choose|show purposes|(your |my )?privacy (choices|settings|preferences|options)|your (choices|options)|do not sell or share my personal information)\s*$/i;
   const SAVE_TEXT =
-    /^\s*(save( (and exit|preferences|settings|my choices|choices))?|confirm( my)? (choices|selection)|submit preferences|apply|done|reject all|refuse all|decline all)\s*$/i;
+    /^\s*(save( (and exit|preferences|settings|my choices?|choices?))?|confirm( my)? (choices?|selection|preferences)|submit preferences|allow selection|apply|done|reject all|refuse all|decline all)\s*$/i;
+  // "Apply" and "Done" also close filter menus inside a vendor list; a button
+  // that says save or confirm is always the better pick when both are there.
+  const WEAK_SAVE = /^\s*(apply|done)\s*$/i;
 
   let openedPreferencesAt = 0;
 
@@ -303,12 +326,11 @@ globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
           try { sw.click(); turnedOff++; } catch { /* fine */ }
         }
       }
-      for (const dialog of dialogs) {
-        for (const b of buttonsIn(dialog)) {
-          if (SAVE_TEXT.test(textOf(b)) && press(b)) {
-            return `preferences:${turnedOff} off`;
-          }
-        }
+      const saves = dialogs.flatMap((dialog) => buttonsIn(dialog))
+        .filter((b) => SAVE_TEXT.test(textOf(b)))
+        .sort((a, b) => WEAK_SAVE.test(textOf(a)) - WEAK_SAVE.test(textOf(b)));
+      for (const b of saves) {
+        if (press(b)) return `preferences:${turnedOff} off`;
       }
       return null;
     }
@@ -462,5 +484,32 @@ globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
     // Consent platforms load themselves asynchronously and often arrive well
     // after the page is otherwise ready.
     [400, 1200, 2000, 2500, 3200, 5000].forEach((ms) => setTimeout(go, ms));
+
+    // And some arrive later still, after a geolocation lookup or a scroll. Watch
+    // for anything added that names itself a consent or legal dialog, and look
+    // again as it animates in. Only the added node's own id, class and first
+    // words are read, so a busy page costs a regex per insertion, not a scan.
+    const SHAPED = /cookie|consent|onetrust|cmp|gdpr|ccpa|privacy|didomi|usercentrics|sp_message|truste|qc-cmp|terms/i;
+    let queued = false;
+    const watcher = new MutationObserver((records) => {
+      if (done || queued) return;
+      for (const rec of records) {
+        for (const node of rec.addedNodes) {
+          if (node.nodeType !== 1) continue;
+          const tag = `${node.id} ${node.className && node.className.baseVal === undefined ? node.className : ""}`;
+          if (SHAPED.test(tag) || SHAPED.test((node.textContent || "").slice(0, 400))) {
+            queued = true;
+            [300, 1500, 4000].forEach((ms, i) =>
+              setTimeout(() => { if (i === 2) queued = false; go(); }, ms));
+            return;
+          }
+        }
+      }
+    });
+    const startWatching = () =>
+      watcher.observe(document.documentElement, { childList: true, subtree: true });
+    if (document.documentElement) startWatching();
+    // Long enough for a slow platform; not forever on a page that never asks.
+    setTimeout(() => watcher.disconnect(), 60000);
   });
 })();
