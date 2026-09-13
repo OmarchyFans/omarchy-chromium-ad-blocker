@@ -4,7 +4,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cdp
 
 S = os.path.dirname(os.path.abspath(__file__))
-EXT = os.path.join(os.path.dirname(S), "extension")
+EXT = os.path.join(os.path.dirname(S), "browser", "extension")
 PROF = "/tmp/omarchy-adblock-test-test_picker"
 USER_RULES = os.path.expanduser("~/.local/share/omarchy-adblock/user/127.0.0.1.json")
 if os.path.exists(USER_RULES): os.remove(USER_RULES)

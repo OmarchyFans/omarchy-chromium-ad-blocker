@@ -352,17 +352,17 @@ rather a site you have already judged never show you its ads again.
 
 ## How it fits into Omarchy
 
-`omarchy plugin add` installs Quickshell shell plugins: bar widgets, panels,
-overlays. A browser extension is not one of those, so this ships as its own repo
-following Omarchy's conventions instead of its plugin registry — the same
-native-messaging-host pattern as `omarchy-chromium-ytdlp`, the same
-`omarchy:summary=` script headers, and a `post-update.d` hook so an Omarchy
-update does not quietly unwire it.
+It installs through `omarchy plugin add` as a bar widget, and the browser half
+follows Omarchy's own conventions: the same native-messaging-host pattern as
+`omarchy-chromium-ytdlp`, the same `omarchy:summary=` script headers, and a
+`post-update.d` hook so an Omarchy update does not quietly unwire it.
 
 ## Layout
 
 ```
-extension/     MV3 extension — layers, chord, picker, popup
+manifest.json  Omarchy plugin manifest; BarWidget.qml is the bar button
+browser/extension/
+               MV3 extension — layers, chord, picker, popup
 host/          native messaging host: rule cache on disk, the model call
 bin/           the omarchy-adblock CLI
 install.sh     idempotent installer; uninstall.sh reverses it

@@ -6,7 +6,7 @@
 set -euo pipefail
 
 REPO="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-EXT_DIR="$REPO/extension"
+EXT_DIR="$REPO/browser/extension"
 HOST_NAME="com.omarchy.adblock"
 CONFIG_DIR="$HOME/.config/omarchy-adblock"
 DATA_DIR="$HOME/.local/share/omarchy-adblock"

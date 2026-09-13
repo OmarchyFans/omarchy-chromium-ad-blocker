@@ -2,7 +2,7 @@
 import json, os, os, shutil, subprocess, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cdp
-S = os.path.dirname(os.path.abspath(__file__)); EXT = os.path.join(os.path.dirname(S), "extension")
+S = os.path.dirname(os.path.abspath(__file__)); EXT = os.path.join(os.path.dirname(S), "browser", "extension")
 PROF = "/tmp/omarchy-adblock-test-test_durable"; shutil.rmtree(PROF, ignore_errors=True)
 os.makedirs(f"{PROF}/NativeMessagingHosts", exist_ok=True)
 shutil.copy(os.path.expanduser("~/.config/chromium/NativeMessagingHosts/com.omarchy.adblock.json"), f"{PROF}/NativeMessagingHosts/")

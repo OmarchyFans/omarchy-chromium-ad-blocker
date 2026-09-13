@@ -9,7 +9,7 @@
 set -euo pipefail
 
 REPO="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-EXT_DIR="$REPO/extension"
+EXT_DIR="$REPO/browser/extension"
 HOST_BIN="$REPO/host/omarchy-adblock-host"
 HOST_NAME="com.omarchy.adblock"
 
@@ -69,7 +69,7 @@ backup() {
 for cmd in python3 openssl; do
   command -v "$cmd" >/dev/null || fail "$cmd is required but not installed"
 done
-[[ -f "$EXT_DIR/manifest.json" ]] || fail "extension/manifest.json not found in $REPO"
+[[ -f "$EXT_DIR/manifest.json" ]] || fail "browser/extension/manifest.json not found in $REPO"
 
 # --- 1. Extension ID ---------------------------------------------------------
 # With --load-extension the ID is derived from the load path unless the manifest

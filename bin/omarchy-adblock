@@ -156,7 +156,8 @@ status)
   backend=$(cfg_get backend local)
   echo "omarchy-chromium-ad-blocker"
   echo
-  if grep -qs -- "-ad-blocker/extension" "$HOME/.config/chromium-flags.conf"; then
+  ext_dir="$(cd -- "$(dirname -- "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)/browser/extension"
+  if grep -qsF -- "$ext_dir" "$HOME/.config/chromium-flags.conf"; then
     echo "  Extension   loaded via ~/.config/chromium-flags.conf"
   else
     echo "  Extension   NOT in chromium-flags.conf — run ./install.sh"
