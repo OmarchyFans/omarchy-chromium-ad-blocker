@@ -106,10 +106,17 @@ Chromium opens in incognito from its next start, and your history is kept in
 `~/.local/share/omarchy-adblock/history.jsonl` (readable only by you) instead of
 nowhere. `omarchy-adblock history github` searches it.
 
-**Until you do one more step, nothing is blocked at all**, and the toolbar button
-does not appear: every window is now incognito, and Chromium refuses to let a
-program grant an extension incognito access. Open `chrome://extensions`, then
-Details on this extension, and turn on **Allow in Incognito**.
+The blocker only runs in incognito windows once it has **Allow in Incognito**.
+Without it nothing is blocked there, the toolbar button does not appear, and no
+history is kept, because the extension never sees the pages. An extension
+cannot grant itself that, so `private on` sets it for every Chromium profile
+that has loaded the blocker. Chromium rewrites that setting when it exits, so
+the command closes Chromium and reopens it. To change only this:
+
+```bash
+omarchy-adblock incognito        # on or off, per profile
+omarchy-adblock incognito on     # closes and reopens Chromium
+```
 
 Incognito keeps no logins between sessions. That is the point, and why this is
 off unless you turn it on.

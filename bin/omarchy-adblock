@@ -22,6 +22,8 @@ Usage: omarchy-adblock <command>
   endpoint <url>      Where the local model listens (default http://127.0.0.1:8080)
   stats [host]        What has been removed: ads, trackers, consent, legal
   private [on|off]    Always open Chromium in incognito, and keep history here
+  incognito [on|off]  Let the blocker run in incognito windows, in every profile
+                      (closes and reopens Chromium to change it)
   history [search]    Your locally kept history (only recorded in private mode)
   sites               Sites with learned rules, and how many each has
   show <host>         The rules learned for one site
@@ -34,6 +36,73 @@ Usage: omarchy-adblock <command>
   log [n]             Last n lines of the host error log
   restart             Fully restart Chromium so changes take effect
 USAGE
+}
+
+EXT_ID="fohhgkaemdiabgidgoajbgnccfccchac"
+CHROMIUM_DIR="$HOME/.config/chromium"
+
+# Chromium keeps "Allow in Incognito" per profile in its Preferences file and
+# rewrites that file on exit, so it can only be changed with Chromium closed.
+# An extension cannot grant itself this; the person running this command can.
+incognito_prefs() {
+  python3 - "$CHROMIUM_DIR" "$EXT_ID" "$1" <<'PY2'
+import json, os, pathlib, sys
+root, ext, action = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+names = {}
+try:
+    cache = json.loads((root / "Local State").read_text())["profile"]["info_cache"]
+    names = {k: v.get("name", k) for k, v in cache.items()}
+except Exception:
+    pass
+found = 0
+for prefs in sorted(root.glob("*/Preferences")):
+    folder = prefs.parent.name
+    if folder in ("System Profile", "Guest Profile"):
+        continue
+    try:
+        data = json.loads(prefs.read_text())
+    except Exception:
+        continue
+    entry = data.get("extensions", {}).get("settings", {}).get(ext)
+    label = f"{names.get(folder, folder)} ({folder})"
+    if entry is None:
+        print(f"  {label:36} not loaded in this profile yet")
+        continue
+    found += 1
+    if action == "status":
+        print(f"  {label:36} {'on' if entry.get('incognito') else 'off'}")
+        continue
+    entry["incognito"] = action == "on"
+    tmp = prefs.with_suffix(".omarchy-tmp")
+    tmp.write_text(json.dumps(data, separators=(",", ":")))
+    os.chmod(tmp, prefs.stat().st_mode & 0o777)
+    tmp.replace(prefs)
+    print(f"  {label:36} {action}")
+if not found:
+    print("  No profile has loaded the extension yet. Start Chromium once, then run this again.")
+PY2
+}
+
+chromium_running() { pgrep -x chromium >/dev/null 2>&1; }
+
+set_incognito() {
+  local want="$1" was_running=0
+  if chromium_running; then
+    was_running=1
+    echo "Closing Chromium: it rewrites these settings when it exits."
+    pkill -x chromium 2>/dev/null || true
+    for _ in $(seq 1 50); do chromium_running || break; sleep 0.2; done
+    if chromium_running; then
+      echo "Chromium did not close. Close it and run this again." >&2
+      exit 1
+    fi
+  fi
+  echo "Allow in Incognito:"
+  incognito_prefs "$want"
+  if (( was_running )); then
+    setsid -f chromium >/dev/null 2>&1 || true
+    echo "Chromium reopened."
+  fi
 }
 
 # One helper for every scalar read, so a hand-edited config with a missing key
@@ -276,16 +345,13 @@ private)
     on)
       grep -qx -- "--incognito" "$flags" 2>/dev/null || echo "--incognito" >>"$flags"
       cfg_set history true bool
+      # Without this every window is incognito and the blocker runs in none of
+      # them: no blocking, no toolbar button, and no local history either.
+      set_incognito on
       cat <<MSG
-Private mode on. Chromium opens in incognito from its next start, and your
-history is kept locally in $DATA_DIR/history.jsonl.
 
-IMPORTANT — until you do the next step, NOTHING is blocked, and the blocker's
-toolbar button will not appear, because every window is now incognito and
-Chromium refuses to let a program grant an extension incognito access:
-  1. omarchy-adblock restart
-  2. Open chrome://extensions, find "Omarchy Chromium Ad Blocker",
-     open Details, and turn on "Allow in Incognito".
+Private mode on. Chromium opens in incognito from its next start, the blocker
+runs there, and your history is kept locally in $DATA_DIR/history.jsonl.
 Undo at any time with: omarchy-adblock private off
 
 Incognito keeps no logins between sessions. That is the point, and it is why
@@ -300,6 +366,14 @@ MSG
       echo "Private mode off. Local history is no longer recorded; what was kept stays until you delete it."
       ;;
     *) echo "usage: omarchy-adblock private [on|off]" >&2; exit 1 ;;
+  esac
+  ;;
+
+incognito)
+  case "${2:-}" in
+    "") echo "Allow in Incognito:"; incognito_prefs status ;;
+    on | off) set_incognito "$2" ;;
+    *) echo "usage: omarchy-adblock incognito [on|off]" >&2; exit 1 ;;
   esac
   ;;
 
