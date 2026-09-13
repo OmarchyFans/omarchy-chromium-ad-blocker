@@ -72,6 +72,13 @@ try:
     check(st["frameOffer"] == "none", "an offer that lives in an overlay frame is removed")
     check(st["lateOffer"] == "none", "an offer box that fills in after it appears is removed")
     check(st["header"] != "none" and not st["headerMarked"], "the site's header and navigation stay, promo strip and all")
+    w, h = cdp.js(ws, "[innerWidth/2|0, innerHeight/2|0]")
+    for _ in range(3):
+        ws.call("Input.dispatchMouseEvent", {"type": "mouseWheel", "x": w, "y": h, "deltaX": 0, "deltaY": 400})
+        time.sleep(0.4)
+    y = cdp.js(ws, "scrollY")
+    print("    after three wheel turns, scrollY =", y)
+    check(y > 0, "the page scrolls with the mouse wheel once the offer and its lock are gone")
 finally:
     proc.terminate()
 

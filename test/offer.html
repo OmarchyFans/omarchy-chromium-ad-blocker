@@ -1,4 +1,5 @@
 <!doctype html><title>offers</title>
+<style>html.offer-open{overflow:clip}</style>
 <body style="margin:0;font:15px system-ui">
 <header id="siteheader" style="position:sticky;top:0;z-index:9999999;height:80px;background:#fff;border-bottom:1px solid #ccc">
   <div>🏈 Draft. Trade. Win. Shop the best deals</div>
@@ -17,6 +18,8 @@
     oy.innerHTML = `<button class="xbtn" aria-label="Close">×</button>
       <iframe src="http://cm.offers.example:8933/page.html?o=/overlay/entrance-082626" style="width:100%;height:90%;border:0"></iframe>`;
     document.body.appendChild(oy);
+    // And it locks the page the way usatoday.com does, with a class on <html>.
+    document.documentElement.classList.add("offer-open");
 
     // A slide-in that is empty when inserted and says what it is a moment later.
     const slide = document.createElement("div");
