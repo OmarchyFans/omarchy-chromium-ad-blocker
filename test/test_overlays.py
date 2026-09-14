@@ -92,6 +92,13 @@ try:
     check(st["catcher"] != "none", "a transparent click-catcher, like an open menu's, stays")
     check(st["toaster"] == "none", "a 'Save The News' donation ask is removed")
     check(st["softwall"] == "none", "a fixed sale bar goes even at z-index 6")
+    time.sleep(5)  # past every fixed rescan timer, and past the 10.5s reveal
+    st = cdp.js(ws, """(() => { const d = (id) => getComputedStyle(document.getElementById(id)).display;
+        return {dim: d('dim'), late: d('late-toaster'), fighter: d('fighter')}; })()""")
+    print("   ", st)
+    check(st["dim"] == "none", "a dimming backdrop goes even when it lets clicks through")
+    check(st["late"] == "none", "an ask that is hidden at first and shown later by a class change goes when it appears")
+    check(st["fighter"] == "none", "an ad the site forces back with an inline !important stays hidden")
 
     print("\n[an embedded player that swallows the wheel]")
     ws = goto(ws, "embed-scroll.html", 5)

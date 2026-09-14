@@ -83,7 +83,7 @@ PROBE = r"""(() => {
   const t = (document.title || '') + ' ' + (B ? B.innerText.slice(0, 400) : '');
   return {
     title: document.title.slice(0, 80),
-    botCheck: /just a moment|verify you are human|verification required|access denied|are you a robot|attention required|pardon our interruption|unusual traffic|press & hold/i.test(t),
+    botCheck: /just a moment|verify you are human|verification required|access denied|access issue|unusual activity|are you a robot|attention required|pardon our interruption|unusual traffic|press & hold/i.test(t),
     overlays: overlays.map(({el, ...o}) => o),
     locked: {html: [hc.overflow, hc.position], body: [bc.overflow, bc.position]},
     blurred,

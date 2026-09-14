@@ -10,4 +10,20 @@
   <h2>Save The News</h2><p>Independent journalism is facing unprecedented pressure. As newsrooms shrink, accountability disappears.</p><button>Maybe later</button></div>
 <!-- washingtonpost.com's sale bar, pinned at z-index 6. -->
 <div id="softwall" style="position:fixed;left:0;right:0;bottom:0;height:160px;z-index:6;background:#eee;padding:16px">FALL SALE A smarter fall starts now. Save on your first year of The Post.</div>
+<!-- latimes.com: a dimming backdrop that lets clicks through. -->
+<div id="dim" style="position:fixed;inset:0;z-index:2147483642;background:rgba(0,0,0,.4);pointer-events:none"></div>
+<!-- huffpost.com: the ask is in the page from the start but hidden, and shown later by a class change. -->
+<style>.toaster--initial{display:none}</style>
+<div id="late-toaster" class="toaster toaster--initial" style="position:fixed;left:0;right:0;bottom:0;height:45%;z-index:5000011;background:#032959;color:#fff;padding:20px">
+  <h2>Save The News</h2><p>Your membership keeps reader-funded reporting alive.</p><label><input type="radio" name="amt"> Support $10 monthly</label></div>
+<!-- repubblica.it: a site script that forces an element a rule hides back into view. -->
+<div id="fighter" class="ad-banner" style="height:90px;background:#fc0">Sponsored</div>
+<script>
+  setTimeout(() => document.getElementById('late-toaster').classList.remove('toaster--initial'), 10500);
+  let fights = 0;
+  const fight = setInterval(() => {
+    document.getElementById('fighter').style.setProperty('display', 'block', 'important');
+    if (++fights > 6) clearInterval(fight);
+  }, 400);
+</script>
 </body>

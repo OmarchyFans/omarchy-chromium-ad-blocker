@@ -28,9 +28,24 @@
   // count a decline as an ad. So consent-shaped overlays wait a few seconds for
   // it; whatever is still showing after that is fair game.
   const CONSENT_SHAPED =
-    /\b(cookies?|consent|gdpr|ccpa|your privacy|privacy preferences|legitimate interest|tracking)\b/i;
+    /\b(cookies?|consent|gdpr|ccpa|your privacy|privacy preferences|legitimate interest|tracking|consentement|einwilligung|consentimiento|consenso|toestemming|consentimento)\b/i;
   const CONSENT_GRACE_MS = 6000;
   const consentSeenAt = new WeakMap();
+  // A popup that is in the page but hidden (huffpost.com's campaign toaster)
+  // is usually shown later by a class or style change, which the childList
+  // observer never sees. Watch just those elements, and look again when they
+  // change.
+  const watchedHidden = new WeakSet();
+  let hiddenPending = null;
+  const hiddenObserver = new MutationObserver(() => {
+    if (hiddenPending) return;
+    hiddenPending = setTimeout(() => { hiddenPending = null; try { scan(); } catch { /* fine */ } }, 300);
+  });
+  const watchHidden = (el) => {
+    if (watchedHidden.has(el)) return;
+    watchedHidden.add(el);
+    hiddenObserver.observe(el, { attributes: true, attributeFilter: ["class", "style", "hidden", "open", "aria-hidden"] });
+  };
   const emptySince = new WeakMap();
   let aiPassDone = false;
   // What this site has already been asked about arrives over a round trip, and a
@@ -175,11 +190,41 @@
     }).join("\n");
   };
 
+  // Some sites force a hidden element back with an inline
+  // "display: flex !important" (repubblica.it's cookie wall), which beats any
+  // stylesheet. For elements a rule matched, the hide is also written inline
+  // and put back if the site takes it away — a few times, not forever.
+  const reasserts = new WeakMap();
+  const enforcer = new MutationObserver((records) => {
+    if (!active()) return; // turned off or allowlisted: the restore must stick
+    for (const { target: el } of records) {
+      if (!markedEls.has(el) || !committed.has(markedEls.get(el))) continue;
+      if (el.style.getPropertyValue("display") === "none" && el.style.getPropertyPriority("display") === "important") continue;
+      const n = (reasserts.get(el) || 0) + 1;
+      if (n > 10) continue;
+      reasserts.set(el, n);
+      el.style.setProperty("display", "none", "important");
+    }
+  });
+  const enforceInline = (selector) => {
+    let nodes = [];
+    try { nodes = document.querySelectorAll(selector); } catch { return; }
+    for (const el of nodes) {
+      if (!markedEls.has(el) || isProtected(el)) continue;
+      const inline = el.style.getPropertyValue("display");
+      if (inline && inline !== "none" && el.style.getPropertyPriority("display") === "important") {
+        el.style.setProperty("display", "none", "important");
+      }
+      enforcer.observe(el, { attributes: true, attributeFilter: ["style"] });
+    }
+  };
+
   const commit = (selectors) => {
     const fresh = selectors.filter((s) => validSelector(s) && !committed.has(s));
     if (!fresh.length) return 0;
     fresh.forEach((s) => committed.add(s));
     rebuildStyle();
+    fresh.forEach(enforceInline);
     return fresh.length;
   };
 
@@ -296,7 +341,7 @@
   // ------------------------------------------------------------- layer 2: DOM
 
   const INTERRUPT_WORDS =
-    /\b(accept (all )?cookies?|cookie (policy|consent|settings)|consent|gdpr|subscribe|newsletter|sign up for|create (a )?free account|allow notifications|disable your ad ?blocker|turn off your ad ?blocker|continue reading|you have \d+ free|special offer|limited time)\b/i;
+    /\b(accept (all )?cookies?|cookie (policy|consent|settings)|cookies?|cookiewall|consent|consentement|einwilligung|consentimiento|consenso|toestemming|consentimento|gdpr|subscribe|newsletter|sign up for|create (a )?free account|allow notifications|disable your ad ?blocker|turn off your ad ?blocker|continue reading|you have \d+ free|special offer|limited time)\b/i;
 
   // Sales offers are interruptions too: a subscription pitch, a discount, an app
   // install prompt. Only ever tested against fixed or sticky layers stacked over
@@ -381,7 +426,10 @@
     }
 
     const cs = getComputedStyle(el);
-    if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") return null;
+    if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") {
+      watchHidden(el);
+      return null;
+    }
 
     const r = el.getBoundingClientRect();
     if (r.width < 40 || r.height < 30) return null;
@@ -406,8 +454,9 @@
     // behind (Piano's tp-backdrop, modality-overlay, a "scrim"), still dimming
     // the page and taking every click. After a few seconds it goes.
     if (!text.trim() && !el.querySelector("iframe,img,video,svg,canvas")) {
-      // Only a layer that visibly dims or blurs the page. A transparent
-      // full-screen catcher is how an open menu closes on an outside click.
+      // Only a layer that visibly dims or blurs the page, whether or not it
+      // takes clicks. A transparent full-screen catcher is how an open menu
+      // closes on an outside click, and stays.
       const alpha = (() => {
         const m = /rgba?\(([^)]+)\)/.exec(cs.backgroundColor || "");
         if (!m) return 0;
@@ -415,7 +464,7 @@
         return parts.length > 3 ? parseFloat(parts[3]) : 1;
       })();
       const dims = alpha >= 0.05 || /blur\(/.test(cs.backdropFilter || "") || parseFloat(cs.opacity) < 1 && alpha > 0;
-      if (coverage > 0.9 && z >= 100 && cs.pointerEvents !== "none" && dims) {
+      if (coverage > 0.9 && z >= 100 && dims) {
         if (!emptySince.has(el)) emptySince.set(el, Date.now());
         if (Date.now() - emptySince.get(el) > 2500) return "hide";
         setTimeout(() => { try { scan(); } catch { /* fine */ } }, 2700);
@@ -885,7 +934,11 @@
     // by a class change the childList observer never sees. One pass per 1.5s
     // of scrolling, at most.
     let scrollPending = null;
+    let scrollSettle = null;
     addEventListener("scroll", () => {
+      // And once more after scrolling stops, for what animates in on arrival.
+      clearTimeout(scrollSettle);
+      scrollSettle = setTimeout(run, 900);
       if (scrollPending) return;
       scrollPending = setTimeout(() => { scrollPending = null; run(); }, 1500);
     }, { passive: true });

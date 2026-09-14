@@ -16,6 +16,10 @@ sending the page anywhere.
   outlined, press **Delete** to remove them all, or turn on automatic removal.
 - **Click to remove.** Point at anything the blocker missed; it goes, and it is
   remembered for that site.
+- **Clean chosen sites automatically.** Tick "Clean this site automatically" in
+  the popup and that site is cleaned on every visit, while automatic removal
+  stays off everywhere else. Every setting applies to the open page at once,
+  with no reload.
 - **Declines cookie consent for you.** Presses Reject on OneTrust, Cookiebot,
   Didomi, Quantcast, Usercentrics, Sourcepoint, TrustArc and more. With no
   reject button, it opens the privacy choices, switches everything off that can
@@ -27,8 +31,13 @@ sending the page anywhere.
   cnn.com's, are removed and the page scrolls again. Agreement checkboxes in
   forms you fill in are never touched.
 - **Never breaks the page.** Site headers and navigation, login and payment
-  fields, and bot checks such as DataDome or Cloudflare are never hidden, and a
-  removed popup's scroll lock and blur go with it.
+  fields, and bot checks such as DataDome or Cloudflare are never hidden. A
+  removed popup's scroll lock, blur and leftover backdrop go with it, and the
+  page keeps scrolling when the pointer is over an embedded player.
+- **Tested on real news sites.** `test/smoke_news.py` loads 59 US and world
+  news sites and checks scrolling, load, and anything still stacked over the
+  page. Consent wording is understood in English, French, German, Spanish,
+  Italian, Dutch, Portuguese and Swedish.
 - **Private browsing with local history.** Always open Chromium in incognito,
   with the blocker running there and your history kept on your own disk.
 - **Statistics.** Ads, trackers, consent dialogs and legal notices removed, per

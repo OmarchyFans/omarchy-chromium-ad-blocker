@@ -216,12 +216,16 @@ globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
   // that, so when a decline does not take, the ad layer's hide is the fallback.
   const press = (el) => {
     if (!el || !visible(el)) return false;
+    // No scrollIntoView: pressing a button near the footer would yank the
+    // reader to the bottom of the page. Whatever scroll the click causes is
+    // put back.
+    const x = scrollX, y = scrollY;
     try {
-      el.scrollIntoView({ block: "center" });
       el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
       el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
       el.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
       el.click();
+      if (TOP && (scrollX !== x || scrollY !== y)) scrollTo(x, y);
       return true;
     } catch {
       return false;
@@ -434,6 +438,7 @@ globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
       if (buttons.some((b) => REJECT_TEXT.test(textOf(b)))) continue;
       if (buttons.length > 2) continue;
       el.style.setProperty("display", "none", "important");
+      el.setAttribute("data-omarchy-legal", "removed");
       n++;
       // The dialog often sits in a full-screen wrapper that is nothing but a
       // backdrop once the dialog is gone, and still takes every click.
