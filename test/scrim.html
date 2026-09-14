@@ -1,0 +1,13 @@
+<!doctype html><title>scrims</title>
+<body style="margin:0;font:15px system-ui">
+<main><h1>Front page</h1><script>for (let i = 0; i < 80; i++) document.write(`<p>Story ${i}.</p>`);</script></main>
+<!-- What a paywall leaves once its box is gone: an empty, dimming layer (npr.org's tp-backdrop, latimes.com's modality-overlay). -->
+<div id="scrim" style="position:fixed;inset:0;z-index:300000;background:rgba(0,0,0,.55)"></div>
+<!-- An open menu's transparent click-catcher: empty and full-screen too, and it must stay. -->
+<div id="catcher" style="position:fixed;inset:0;z-index:1000;background:transparent"></div>
+<!-- huffpost.com's donation ask. -->
+<div id="toaster" style="position:fixed;right:0;bottom:0;width:45%;height:55%;z-index:5000010;background:#fff;padding:20px">
+  <h2>Save The News</h2><p>Independent journalism is facing unprecedented pressure. As newsrooms shrink, accountability disappears.</p><button>Maybe later</button></div>
+<!-- washingtonpost.com's sale bar, pinned at z-index 6. -->
+<div id="softwall" style="position:fixed;left:0;right:0;bottom:0;height:160px;z-index:6;background:#eee;padding:16px">FALL SALE A smarter fall starts now. Save on your first year of The Post.</div>
+</body>

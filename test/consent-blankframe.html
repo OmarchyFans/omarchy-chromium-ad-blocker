@@ -1,0 +1,22 @@
+<!doctype html><title>blank frame consent</title>
+<body style="margin:0;font:15px system-ui">
+<main><h1>Actualité</h1><p>Contenu.</p></main>
+<div id="appconsent" style="position:fixed;inset:0;z-index:2147483647"><iframe id="cmp" style="width:100%;height:100%;border:0"></iframe></div>
+<script>
+ // lefigaro.fr's AppConsent: a frame with no src, written by script, whose
+ // content is not itself position:fixed.
+ // Written a moment after load, as AppConsent does; writing during parsing is
+ // wiped by the frame's own initial about:blank load.
+ setTimeout(() => {
+   const d = document.getElementById('cmp').contentDocument;
+   d.open();
+   d.write(`<body style="font:14px system-ui"><div class="dialog"><h2>Make a choice for your data</h2>
+     <p>We and our 249 partners use cookies or equivalent technology to store and/or access information on your device.</p>
+     <button class="button__skip" id="skip">Continue without accepting</button> <button id="all">ACCEPT ALL</button></div></body>`);
+   d.close();
+   const top = document.documentElement.dataset;
+   d.getElementById('skip').onclick = () => { top.consent = 'rejected'; document.getElementById('appconsent').remove(); };
+   d.getElementById('all').onclick = () => { top.consent = 'accepted'; document.getElementById('appconsent').remove(); };
+ }, 300);
+</script>
+</body>

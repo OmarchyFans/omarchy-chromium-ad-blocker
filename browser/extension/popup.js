@@ -17,7 +17,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
   $("allowHost").textContent = host ? registrableHost(host) : "—";
 
   const s = await chrome.storage.local.get(
-    ["enabled", "ai", "mode", "cookies", "cookiesThirdParty", "history", "legal", "allowlist"]);
+    ["enabled", "ai", "mode", "cookies", "cookiesThirdParty", "history", "legal", "allowlist", "autoSites"]);
   const allowKey = registrableHost(host);
 
   $("ads").checked = s.enabled !== false;
@@ -28,6 +28,16 @@ chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
   $("history").checked = s.history === true;
   $("legal").checked = s.legal === true;
   $("allow").checked = (s.allowlist || []).includes(allowKey);
+  $("siteAutoHost").textContent = host ? allowKey : "this site";
+  const syncSiteAuto = () => {
+    const everywhere = $("mode").checked;
+    $("siteAuto").disabled = everywhere || !host;
+    $("siteAuto").checked = everywhere || (s.autoSites || []).includes(allowKey);
+    $("siteAutoSub").textContent = everywhere
+      ? "Already on for every site"
+      : "Every time you open it, starting now";
+  };
+  syncSiteAuto();
 
   const syncBodies = () => {
     $("adsBody").hidden = !$("ads").checked;
@@ -78,14 +88,14 @@ chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
   $("preview").onclick = () => send("preview");
   $("pick").onclick = () => send("enter-picker");
 
-  // ---- settings. Most take effect on reload, because the layers that matter
-  // run at document_start and flipping one mid-page would only half-apply.
+  // ---- settings. The page applies each change as it lands, so nothing here
+  // reloads the tab: turning on automatic removal cleans the page in place.
   const reload = () => chrome.tabs.reload(tab.id);
-  const bind = (id, key, map = (v) => v, reloadAfter = true) => {
+  const bind = (id, key, map = (v) => v) => {
     $(id).onchange = (e) => {
       chrome.storage.local.set({ [key]: map(e.target.checked) }, () => {
         syncBodies();
-        if (reloadAfter) reload();
+        syncSiteAuto();
       });
     };
   };
@@ -94,16 +104,19 @@ chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
   bind("ai", "ai");
   bind("cookies", "cookies");
   bind("cookiesThirdParty", "cookiesThirdParty");
-  bind("history", "history", (v) => v, false);
+  bind("history", "history");
   bind("legal", "legal");
 
-  $("allow").onchange = async (e) => {
-    const cur = (await chrome.storage.local.get("allowlist")).allowlist || [];
-    const next = e.target.checked
-      ? [...new Set([...cur, allowKey])]
-      : cur.filter((h) => h !== allowKey);
-    chrome.storage.local.set({ allowlist: next }, reload);
+  const toggleIn = async (key, on) => {
+    const cur = (await chrome.storage.local.get(key))[key] || [];
+    const next = on ? [...new Set([...cur, allowKey])] : cur.filter((h) => h !== allowKey);
+    await chrome.storage.local.set({ [key]: next });
+    s[key] = next;
   };
+  $("siteAuto").onchange = (e) => toggleIn("autoSites", e.target.checked);
+  // Leaving a site alone reloads it: what consent and legal handling already
+  // answered or removed can only be put back by loading the page fresh.
+  $("allow").onchange = (e) => toggleIn("allowlist", e.target.checked).then(reload);
 
   $("forget").onclick = () => {
     if (!host) return;

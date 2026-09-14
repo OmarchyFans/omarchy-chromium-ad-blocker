@@ -175,11 +175,11 @@ globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
   // button accepts. It is only safe after the switches are off, so it lives in
   // SAVE_TEXT for the preferences pass.
   const REJECT_TEXT =
-    /^(\s*)(reject all|reject|decline all|decline|refuse all|refuse|deny all|deny|do not (accept|consent|sell|share)|don'?t accept|only (necessary|essential|required)|(necessary|essential|required) (cookies )?only|use necessary (cookies )?only|continue without (accepting|agreeing)|no,? thanks?|disagree|opt out)(\s*)$/i;
+    /^(\s*)(reject all|reject|decline all|decline|refuse all|refuse|deny all|deny|do not (accept|consent|sell|share)|don'?t accept|only (necessary|essential|required)|(necessary|essential|required) (cookies )?only|use necessary (cookies )?only|continue without (accepting|agreeing)|no,? thanks?|disagree|opt out|tout refuser|refuser tout|refuser|continuer sans accepter|alle ablehnen|ablehnen|nur (notwendige|erforderliche|essenzielle)( cookies)?( akzeptieren)?|rechazar todo|rechazar todas|rechazar|continuar sin aceptar|rifiuta tutto|rifiuta|continua senza accettare|alles weigeren|weigeren|alles afwijzen|afwijzen|rejeitar tudo|rejeitar|recusar|continuar sem aceitar|avvisa alla|avb[oö]j alla|neka alla)(\s*)$/i;
 
   // What a consent or legal dialog says about itself.
   const CONSENT_WORDS =
-    /\b(cookie|cookies|consent|gdpr|ccpa|privacy preferences?|tracking|your privacy|we value your privacy|legitimate interest|data protection)\b/i;
+    /\b(cookie|cookies|consent|gdpr|ccpa|privacy preferences?|tracking|your privacy|we value your privacy|legitimate interest|data protection|consentement|vie priv[eé]e|einwilligung|datenschutz|consentimiento|privacidad|consenso|toestemming|consentimento|privacidade|samtycke)\b/i;
 
   const LEGAL_WORDS =
     /\b(terms (of (use|service)|and conditions)|privacy (policy|notice)|user agreement|eula|by (continuing|using this site|browsing)|we('ve| have) updated our (terms|privacy))\b/i;
@@ -201,7 +201,9 @@ globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
 
   const visible = (el) => {
     if (!el || !el.isConnected) return false;
-    const cs = getComputedStyle(el);
+    // The element may live in a same-origin frame's document.
+    const view = (el.ownerDocument && el.ownerDocument.defaultView) || window;
+    const cs = view.getComputedStyle(el);
     if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") return false;
     const r = el.getBoundingClientRect();
     return r.width > 1 && r.height > 1;
@@ -266,6 +268,25 @@ globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
       }
       out.push(el);
     }
+    // Inside a consent platform's own frame the frame is the dialog, whether or
+    // not anything in it is position:fixed.
+    if (!TOP && !out.length && document.body && CONSENT_WORDS.test(textOf(document.body).slice(0, 1500))) {
+      out.push(document.body);
+    }
+    // AppConsent (lefigaro.fr) writes its dialog into a frame with no src by
+    // document.write, which replaces the frame's document after this script was
+    // injected into it. The top frame can still reach a same-origin frame's
+    // document, so it answers from here.
+    if (TOP) {
+      for (const f of document.querySelectorAll("iframe")) {
+        let doc = null;
+        try { doc = f.contentDocument; } catch { continue; }
+        if (!doc || !doc.body || !visible(f)) continue;
+        const fr = f.getBoundingClientRect();
+        if (fr.width * fr.height < 8000) continue;
+        if (CONSENT_WORDS.test(textOf(doc.body).slice(0, 1500))) out.push(doc.body);
+      }
+    }
     return out;
   };
 
@@ -298,9 +319,9 @@ globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
   // Switches the site has disabled are the strictly necessary ones, so leaving
   // disabled controls alone is exactly "except those required to use the site".
   const SETTINGS_TEXT =
-    /^\s*(manage( (my )?(options|preferences|settings|cookies|choices|privacy|consent))?|customi[sz]e|cookie (settings|preferences|choices)|settings|preferences|more options|options|let me choose|show purposes|(your |my )?privacy (choices|settings|preferences|options)|your (choices|options)|do not sell or share my personal information)\s*$/i;
+    /^\s*(manage( (my )?(options|preferences|settings|cookies|choices|privacy|consent))?|customi[sz]e|cookie (settings|preferences|choices)|settings|preferences|more options|options|let me choose|show purposes|(your |my )?privacy (choices|settings|preferences|options)|your (choices|options)|do not sell or share my personal information|param[eé]trer|personnaliser|g[eé]rer (mes )?(choix|pr[eé]f[eé]rences|cookies)|einstellungen|anpassen|cookie-einstellungen|configurar|personalizar|gestionar (cookies|preferencias)|impostazioni|personalizza|gestisci (le )?(preferenze|opzioni)|instellingen|aanpassen|gerenciar (cookies|prefer[eê]ncias)|inst[aä]llningar|anpassa)\s*$/i;
   const SAVE_TEXT =
-    /^\s*(save( (and exit|preferences|settings|my choices?|choices?))?|confirm( my)? (choices?|selection|preferences)|submit preferences|allow selection|apply|done|reject all|refuse all|decline all)\s*$/i;
+    /^\s*(save( (and exit|preferences|settings|my choices?|choices?))?|confirm( my)? (choices?|selection|preferences)|submit preferences|allow selection|apply|done|reject all|refuse all|decline all|enregistrer( (mes choix|et quitter))?|valider( (mes choix|la s[eé]lection))?|confirmer( mes choix)?|speichern|auswahl (speichern|best[aä]tigen)|guardar( (preferencias|y salir))?|confirmar (selecci[oó]n|mis preferencias)|salva( (le )?(scelte|preferenze))?|conferma (le )?scelte|opslaan|keuze opslaan|salvar( prefer[eê]ncias)?|spara( (val|inst[aä]llningar))?)\s*$/i;
   // "Apply" and "Done" also close filter menus inside a vendor list; a button
   // that says save or confirm is always the better pick when both are there.
   const WEAK_SAVE = /^\s*(apply|done)\s*$/i;
@@ -414,6 +435,16 @@ globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
       if (buttons.length > 2) continue;
       el.style.setProperty("display", "none", "important");
       n++;
+      // The dialog often sits in a full-screen wrapper that is nothing but a
+      // backdrop once the dialog is gone, and still takes every click.
+      for (let up = el.parentElement; up && up !== document.body; up = up.parentElement) {
+        const ucs = getComputedStyle(up);
+        if (ucs.position !== "fixed") continue;
+        const r = up.getBoundingClientRect();
+        if (r.width * r.height < innerWidth * innerHeight * 0.8) break;
+        if ((up.innerText || "").trim()) break;
+        up.style.setProperty("display", "none", "important");
+      }
     }
     // Whatever it locked behind itself comes back with it.
     if (n && TOP) globalThis.OMARCHY_UNLOCK_SCROLL();
@@ -464,6 +495,22 @@ globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
       }
     }
   };
+
+  // Turning an opt-in on in the popup answers what is on the page right away,
+  // instead of waiting for the next page load.
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local" || !["enabled", "cookies", "legal", "allowlist"].some((k) => k in changes)) return;
+    chrome.storage.local.get(["enabled", "cookies", "legal", "allowlist"], (s) => {
+      const turnedOn = (s.cookies === true && !settings.cookies) || (s.legal === true && !settings.legal) ||
+        (s.enabled !== false && !settings.enabled);
+      settings = { enabled: s.enabled !== false, cookies: s.cookies === true, legal: s.legal === true };
+      const allow = s.allowlist || [];
+      if (!settings.enabled || allow.some((h) => HOST === h || HOST.endsWith("." + h)) || !turnedOn) return;
+      done = false;
+      openedPreferencesAt = 0;
+      [0, 800, 2000, 4000].forEach((ms) => setTimeout(() => { try { run(); } catch { /* fine */ } }, ms));
+    });
+  });
 
   chrome.storage.local.get(["enabled", "cookies", "legal", "allowlist"], (s) => {
     settings = {

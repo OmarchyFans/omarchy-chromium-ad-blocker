@@ -94,6 +94,16 @@ try:
     check(st.get("sale") == "false" and st.get("targeting") == "false", "sale of data and targeted ads are switched off")
     check(st.get("necessary") == "true" and not st["banner"], "the locked necessary cookies stay, and the banner is gone")
 
+    print("\n[a consent platform's frame with no src, and a French banner]")
+    ws = goto(ws, "consent-blankframe.html", 7)
+    st = cdp.js(ws, "document.documentElement.dataset.consent || 'none'")
+    print("    blank frame:", st)
+    check(st == "rejected", "AppConsent's script-written frame is answered with 'Continue without accepting'")
+    ws = goto(ws, "consent-fr.html", 6)
+    st = cdp.js(ws, "document.documentElement.dataset.consent || 'none'")
+    print("    french:", st)
+    check(st == "rejected", "a French banner is answered with 'Tout refuser'")
+
     print("\n[automatic ad removal on too, banner arrives late]")
     cdp.cjs(ws, cdp.isolated_context(ws), "chrome.storage.local.set({mode:'auto'}).then(()=>1)")
     time.sleep(1)

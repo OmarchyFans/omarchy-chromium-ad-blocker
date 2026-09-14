@@ -1,0 +1,12 @@
+<!doctype html><html lang="fr"><title>fr</title><body style="margin:0;font:15px system-ui">
+<main><h1>À la une</h1></main>
+<div id="bandeau" style="position:fixed;left:0;right:0;bottom:0;height:160px;z-index:9999;background:#fff;padding:16px">
+  <p>Nous et nos partenaires utilisons des cookies pour mesurer l'audience et personnaliser la publicité. Votre consentement est libre.</p>
+  <button id="ok">Tout accepter</button> <button id="non">Tout refuser</button>
+</div>
+<script>
+ const d = document.documentElement.dataset;
+ ok.onclick = () => { d.consent = 'accepted'; bandeau.remove(); };
+ non.onclick = () => { d.consent = 'rejected'; bandeau.remove(); };
+</script>
+</body></html>

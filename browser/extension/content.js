@@ -31,6 +31,7 @@
     /\b(cookies?|consent|gdpr|ccpa|your privacy|privacy preferences|legitimate interest|tracking)\b/i;
   const CONSENT_GRACE_MS = 6000;
   const consentSeenAt = new WeakMap();
+  const emptySince = new WeakMap();
   let aiPassDone = false;
   // What this site has already been asked about arrives over a round trip, and a
   // fast page finishes its first scan before it lands. Asking then would re-ask
@@ -46,7 +47,10 @@
   const pendingCandidates = new Set();
   const settled = new WeakSet();
 
-  const auto = () => settings.mode === "auto";
+  // Automatic removal is on for every site, or for the sites the person picked
+  // in the popup ("Clean this site automatically").
+  const onList = (list) => (list || []).some((h) => HOST === h || HOST.endsWith("." + h));
+  const auto = () => settings.mode === "auto" || onList(settings.autoSites);
 
   // ---------------------------------------------------------------- utilities
 
@@ -298,7 +302,7 @@
   // install prompt. Only ever tested against fixed or sticky layers stacked over
   // the page, never against article text.
   const OFFER_WORDS =
-    /\b((exclusive|special|limited[- ]time|introductory|welcome) offer|subscribe (now|today)|unlimited (digital )?access|(start|begin) (your )?(free )?trial|free trial|\d+% off|save \d+%|per (month|week|year)|\$\d+(\.\d\d)?( ?\/ ?| (for|a|per) )(mo|month|week|wk|year|yr)|get the app|download (our|the) app|open in (the )?app|become a (member|subscriber)|already a subscriber|sign in to (continue|keep reading)|register to (continue|keep reading)|unlock (this|all|full)|claim (your|this) (offer|deal|discount))\b/i;
+    /\b((exclusive|special|limited[- ]time|introductory|welcome) offer|subscribe (now|today)|unlimited (digital )?access|(start|begin) (your )?(free )?trial|free trial|\d+% off|save \d+%|per (month|week|year)|\$\d+(\.\d\d)?( ?\/ ?| (for|a|per) )(mo|month|week|wk|year|yr)|get the app|download (our|the) app|open in (the )?app|become a (member|subscriber)|already a subscriber|sign in to (continue|keep reading)|register to (continue|keep reading)|unlock (this|all|full)|claim (your|this) (offer|deal|discount)|(fall|summer|spring|winter|holiday|flash|labor day|memorial day|black friday|cyber monday|anniversary) sale|save on (your|a) (first|subscription|digital)|subscribe for (just |only )?\$?\d|save the news|support (independent|quality|local|our|trusted) (journalism|reporting|news)|donate (now|today)|make a (contribution|donation)|contribute (now|today)|become a (supporter|member)|abonnez-vous|jetzt abonnieren|suscr[ií]bete|abbonati)\b/i;
 
   // An offer whose content lives in a frame shows the page no words at all, so
   // the frame's address is the tell: overlay and offer services, paywalls.
@@ -397,8 +401,25 @@
       return null; // not settled — consent.js gets the first go
     }
     // Still empty: the offer or dialog that goes here has not rendered yet.
-    // Leave it unsettled so the next pass sees what it becomes.
+    // Leave it unsettled so the next pass sees what it becomes. Except a
+    // full-screen layer that stays empty: that is the backdrop a popup left
+    // behind (Piano's tp-backdrop, modality-overlay, a "scrim"), still dimming
+    // the page and taking every click. After a few seconds it goes.
     if (!text.trim() && !el.querySelector("iframe,img,video,svg,canvas")) {
+      // Only a layer that visibly dims or blurs the page. A transparent
+      // full-screen catcher is how an open menu closes on an outside click.
+      const alpha = (() => {
+        const m = /rgba?\(([^)]+)\)/.exec(cs.backgroundColor || "");
+        if (!m) return 0;
+        const parts = m[1].split(/[ ,/]+/).filter(Boolean);
+        return parts.length > 3 ? parseFloat(parts[3]) : 1;
+      })();
+      const dims = alpha >= 0.05 || /blur\(/.test(cs.backdropFilter || "") || parseFloat(cs.opacity) < 1 && alpha > 0;
+      if (coverage > 0.9 && z >= 100 && cs.pointerEvents !== "none" && dims) {
+        if (!emptySince.has(el)) emptySince.set(el, Date.now());
+        if (Date.now() - emptySince.get(el) > 2500) return "hide";
+        setTimeout(() => { try { scan(); } catch { /* fine */ } }, 2700);
+      }
       return null;
     }
     const offer = OFFER_WORDS.test(text) || hasOfferFrame(el);
@@ -414,7 +435,7 @@
     if (interrupts && z >= 10 && (coverage > 0.06 || hasClose)) return "hide";
     // A sales pitch pinned over the page is an interruption at any size worth
     // noticing; a corner "subscribe for $1" box rarely bothers with a close button.
-    if (offer && z >= 10 && coverage > 0.02) return "hide";
+    if (offer && (z >= 1 || cs.position === "fixed") && coverage > 0.02) return "hide";
 
     // Tall, high, and mostly links or an iframe: an ad rail rather than a UI bar.
     if (z >= 1000 && coverage > 0.15) return "ask";
@@ -812,7 +833,10 @@
 
   // ------------------------------------------------------------------- start
 
+  let started = false;
   const start = (cachedRules, userRules) => {
+    if (started) return;
+    started = true;
     if (Array.isArray(userRules)) userRules.forEach((s) => mark(s, "user"));
 
     // In auto mode the learned rules go in as CSS immediately, before the page
@@ -892,19 +916,61 @@
     return false;
   });
 
-  chrome.storage.local.get(
-    ["enabled", "ai", "mode", "allowlist", "cookies", "rules:" + HOST, "user:" + HOST],
-    (s) => {
-      settings = {
-        enabled: s.enabled !== false,
-        ai: s.ai !== false,
-        mode: s.mode === "auto" ? "auto" : "manual",
-        allowlist: s.allowlist || [],
-        cookies: s.cookies === true,
-      };
-      if (!settings.enabled) return;
-      if (settings.allowlist.some((h) => HOST === h || HOST.endsWith("." + h))) return;
-      start(s["rules:" + HOST], s["user:" + HOST]);
-    }
-  );
+  const readSettings = (s, base = {}) => ({
+    ...base,
+    enabled: s.enabled !== false,
+    ai: s.ai !== false,
+    mode: s.mode === "auto" ? "auto" : "manual",
+    allowlist: s.allowlist || [],
+    autoSites: s.autoSites || [],
+    cookies: s.cookies === true,
+  });
+  const KEYS = ["enabled", "ai", "mode", "allowlist", "autoSites", "cookies"];
+  const active = () => settings.enabled && !onList(settings.allowlist);
+
+  chrome.storage.local.get([...KEYS, "rules:" + HOST, "user:" + HOST], (s) => {
+    settings = readSettings(s);
+    if (!active()) return;
+    start(s["rules:" + HOST], s["user:" + HOST]);
+  });
+
+  // Settings apply to the open page as soon as they change, without a reload:
+  // turning on automatic removal (for every site or just this one) removes what
+  // is already marked, turning the blocker on starts it, and turning it off or
+  // allowlisting the site puts back what it hid.
+  const hiddenInline = new Set();
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local" || !KEYS.some((k) => k in changes)) return;
+    const wasActive = started && active();
+    const wasAuto = auto();
+    chrome.storage.local.get([...KEYS, "rules:" + HOST, "user:" + HOST], (s) => {
+      settings = readSettings(s, settings);
+      if (!active()) {
+        if (!wasActive) return;
+        styleEl().textContent = "";
+        for (const el of markedEls.keys()) {
+          if (el.style.getPropertyValue("display") === "none") {
+            el.style.removeProperty("display");
+            hiddenInline.add(el);
+          }
+        }
+        return;
+      }
+      if (!started) {
+        start(s["rules:" + HOST], s["user:" + HOST]);
+        return;
+      }
+      rebuildStyle();
+      if (!wasActive) {
+        for (const el of hiddenInline) el.style.setProperty("display", "none", "important");
+        hiddenInline.clear();
+      }
+      if (auto() && (!wasAuto || !wasActive)) {
+        const els = [...markedEls.keys()];
+        commitAll();
+        tally(els);
+        report();
+      }
+    });
+  });
 })();

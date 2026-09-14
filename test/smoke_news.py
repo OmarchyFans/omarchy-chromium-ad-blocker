@@ -143,6 +143,12 @@ def run_site(i, url):
             ws.drain(0.45)
             ys.append(int(cdp.js(ws, "scrollY") or 0))
         b = metrics(ws); dt = time.time() - s0
+        if ys[-1] <= 400:
+            # A carousel or widget under the pointer can take the wheel; try the edge.
+            for _ in range(4):
+                ws.call("Input.dispatchMouseEvent", {"type": "mouseWheel", "x": 8, "y": h, "deltaX": 0, "deltaY": 500})
+                ws.drain(0.45)
+                ys.append(int(cdp.js(ws, "scrollY") or 0))
         res["scroll"] = {"ys": ys, "maxLatencyMs": max(lat), "moved": ys[-1] > 400,
                          "busyPct": round(100 * (b["TaskDuration"] - a["TaskDuration"]) / dt),
                          "scriptPct": round(100 * (b["ScriptDuration"] - a["ScriptDuration"]) / dt),

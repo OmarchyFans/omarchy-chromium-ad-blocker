@@ -83,6 +83,16 @@ try:
     y = cdp.js(ws, "scrollY")
     print("    after three wheel turns, scrollY =", y)
     check(y > 0, "the page scrolls with the mouse wheel once the offer and its lock are gone")
+    print("\n[leftover backdrops, a donation ask, a low sale bar]")
+    ws = goto(ws, "scrim.html", 8)
+    st = cdp.js(ws, """(() => { const d = (id) => getComputedStyle(document.getElementById(id)).display;
+        return {scrim: d('scrim'), catcher: d('catcher'), toaster: d('toaster'), softwall: d('softwall')}; })()""")
+    print("   ", st)
+    check(st["scrim"] == "none", "an empty dimming backdrop left over the page goes after a few seconds")
+    check(st["catcher"] != "none", "a transparent click-catcher, like an open menu's, stays")
+    check(st["toaster"] == "none", "a 'Save The News' donation ask is removed")
+    check(st["softwall"] == "none", "a fixed sale bar goes even at z-index 6")
+
     print("\n[an embedded player that swallows the wheel]")
     ws = goto(ws, "embed-scroll.html", 5)
     cdp.js(ws, "document.getElementById('player').scrollIntoView({block: 'center'})")
