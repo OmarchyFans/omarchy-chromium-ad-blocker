@@ -1,10 +1,14 @@
 <!doctype html><title>offers</title>
 <style>html.offer-open{overflow:clip}</style>
 <body style="margin:0;font:15px system-ui">
-<header id="siteheader" style="position:sticky;top:0;z-index:9999999;height:80px;background:#fff;border-bottom:1px solid #ccc">
-  <div>🏈 Draft. Trade. Win. Shop the best deals</div>
-  <nav><a href="#">U.S.</a> <a href="#">Politics</a> <a href="#">Sports</a> <a href="#">Money</a> <a href="#">Travel</a></nav>
-</header>
+<div id="headwrap" style="position:sticky;top:0;z-index:1005;background:#fff">
+  <header id="siteheader" style="height:80px;border-bottom:1px solid #ccc">
+    <div>🏈 Draft. Trade. Win. Shop the best deals <a href="#">SALE: 6 MONTHS FOR 99¢</a></div>
+    <nav><a href="#">U.S.</a> <a href="#">Politics</a> <a href="#">Sports</a> <a href="#">Money</a> <a href="#">Travel</a></nav>
+  </header>
+  <!-- statesman.com's shape: a sales strip pinned inside the same sticky wrapper as the header. -->
+  <div id="salestrip" style="height:80px;background:#fe0;padding:20px">SALE! Stay connected every day with unlimited digital access. <a href="#">6 MONTHS FOR 99¢</a></div>
+</div>
 <main><h1>Front page</h1>
   <script>for (let i = 0; i < 80; i++) document.write(`<p>Story ${i}.</p>`);</script>
 </main>

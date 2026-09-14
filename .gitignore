@@ -4,3 +4,4 @@ __pycache__/
 browser/extension/_metadata/
 # Test browser profiles. The tests put them under /tmp; this is a backstop.
 test/prof*/
+test/smoke-out/

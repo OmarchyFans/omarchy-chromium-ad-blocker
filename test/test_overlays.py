@@ -14,7 +14,7 @@ shutil.copy(os.path.expanduser("~/.config/chromium/NativeMessagingHosts/com.omar
 
 # Non-private names for every host, so neither the host's loopback exclusion
 # nor third-party detection is fooled by everything being 127.0.0.1.
-HOSTS = ["site.adtest.example", "geo.captcha-delivery.com", "cm.offers.example"]
+HOSTS = ["site.adtest.example", "geo.captcha-delivery.com", "cm.offers.example", "player.example"]
 proc = subprocess.Popen([
     "chromium", "--headless=new", "--no-sandbox", "--disable-gpu",
     f"--user-data-dir={PROF}", f"--load-extension={EXT}",
@@ -72,6 +72,10 @@ try:
     check(st["frameOffer"] == "none", "an offer that lives in an overlay frame is removed")
     check(st["lateOffer"] == "none", "an offer box that fills in after it appears is removed")
     check(st["header"] != "none" and not st["headerMarked"], "the site's header and navigation stay, promo strip and all")
+    strip = cdp.js(ws, "getComputedStyle(document.getElementById('salestrip')).display")
+    wrap = cdp.js(ws, "getComputedStyle(document.getElementById('headwrap')).display")
+    check(strip == "none" and wrap != "none",
+          "a sales strip pinned inside the header's sticky wrapper goes, and the wrapper stays")
     w, h = cdp.js(ws, "[innerWidth/2|0, innerHeight/2|0]")
     for _ in range(3):
         ws.call("Input.dispatchMouseEvent", {"type": "mouseWheel", "x": w, "y": h, "deltaX": 0, "deltaY": 400})
@@ -79,6 +83,18 @@ try:
     y = cdp.js(ws, "scrollY")
     print("    after three wheel turns, scrollY =", y)
     check(y > 0, "the page scrolls with the mouse wheel once the offer and its lock are gone")
+    print("\n[an embedded player that swallows the wheel]")
+    ws = goto(ws, "embed-scroll.html", 5)
+    cdp.js(ws, "document.getElementById('player').scrollIntoView({block: 'center'})")
+    time.sleep(0.5)
+    r = cdp.js(ws, "(() => { const b = document.getElementById('player').getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2, scrollY]; })()")
+    x, y, before = r
+    for _ in range(3):
+        ws.call("Input.dispatchMouseEvent", {"type": "mouseWheel", "x": x, "y": y, "deltaX": 0, "deltaY": 400})
+        time.sleep(0.4)
+    after = cdp.js(ws, "scrollY")
+    print("    scrollY with the pointer over the player:", before, "->", after)
+    check(after > before + 300, "the page keeps scrolling while the pointer is over the embed")
 finally:
     proc.terminate()
 

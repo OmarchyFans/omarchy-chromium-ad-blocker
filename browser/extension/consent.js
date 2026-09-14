@@ -475,6 +475,34 @@ globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
     const allow = s.allowlist || [];
     if (allow.some((h) => HOST === h || HOST.endsWith("." + h))) return;
 
+    // An embedded frame that cannot scroll itself but sets overscroll-behavior
+    // (Tailwind's overscroll-none, common in audio and video players) swallows
+    // the wheel: the page stops scrolling whenever the pointer is over it.
+    // Only frames with nothing to scroll are changed, so an embed with its own
+    // scrolling list keeps the site's behaviour.
+    if (!TOP) {
+      const letWheelThrough = () => {
+        try {
+          const H = document.documentElement, B = document.body;
+          if (!H || !B) return;
+          if (H.scrollHeight > innerHeight + 1 || B.scrollHeight > innerHeight + 1) return;
+          const stuck = [H, B, ...B.querySelectorAll("*")].filter((el) => {
+            const o = getComputedStyle(el).overscrollBehaviorY;
+            return o && o !== "auto" && el.scrollHeight <= el.clientHeight + 1;
+          });
+          for (const el of stuck.slice(0, 50)) {
+            el.style.setProperty("overscroll-behavior", "auto", "important");
+          }
+        } catch { /* never break the frame */ }
+      };
+      const soon = () => [0, 1000, 3000].forEach((ms) => setTimeout(letWheelThrough, ms));
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", soon, { once: true });
+      } else {
+        soon();
+      }
+    }
+
     const go = () => { try { run(); } catch { /* never break the page */ } };
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", go, { once: true });

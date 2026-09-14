@@ -1,0 +1,11 @@
+<!doctype html><title>embed scroll</title>
+<body style="margin:0;font:15px system-ui">
+<main style="width:760px;margin:0 auto">
+  <script>for (let i = 0; i < 12; i++) document.write(`<p>Paragraph ${i} before the player.</p>`);</script>
+  <!-- An audio player embed from another origin, the everlit.audio shape on
+       statesman.com: the frame cannot scroll and sets overscroll-behavior:none. -->
+  <iframe id="player" src="http://player.example:8933/embed-frame.html"
+          style="display:block;width:760px;height:600px;border:0"></iframe>
+  <script>for (let i = 0; i < 150; i++) document.write(`<p>Paragraph ${i} after the player.</p>`);</script>
+</main>
+</body>

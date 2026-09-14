@@ -332,8 +332,49 @@
 
   // "hide" act now · "ask" send to the model · "ok" settled, stop looking ·
   // null not ready — a popup that is still hidden will be revealed on a timer.
+  // A sticky wrapper holding the site's header is protected as a whole, but a
+  // sales strip pinned inside it ("SALE: 6 months for 99¢ — unlimited digital
+  // access") is not the header. Those parts go on their own: never the header
+  // or navigation, nor anything inside or holding them.
+  const offerPartsOf = (wrapper) => {
+    const vw = innerWidth * innerHeight;
+    const parts = [];
+    for (const el of wrapper.querySelectorAll("div,section,aside,p,a")) {
+      if (parts.some((p) => p.contains(el))) continue;
+      if (el.closest('header, nav, [role="banner"], [role="navigation"], form')) continue;
+      if (el.querySelector('header, nav, [role="banner"], [role="navigation"], input')) continue;
+      const text = (el.innerText || "").slice(0, 400);
+      if (!OFFER_WORDS.test(text)) continue;
+      const cs = getComputedStyle(el);
+      if (cs.display === "none" || cs.visibility === "hidden") continue;
+      const r = el.getBoundingClientRect();
+      if (r.width * r.height < vw * 0.02) continue;
+      parts.push(el);
+    }
+    return parts;
+  };
+  const wrapperText = new WeakMap();
+  const holdsNavigation = (el) =>
+    !el.matches('header, nav, [role="banner"], [role="navigation"]') &&
+    !!el.querySelector('header, nav, [role="banner"], [role="navigation"]');
+
   const classify = (el) => {
-    if (isProtected(el)) return "ok";
+    if (isProtected(el)) {
+      if (holdsNavigation(el) && !el.closest("form")) {
+        // One innerText read per pass; the parts are only walked when the
+        // wrapper's text mentions an offer and has changed since last time.
+        const text = (el.innerText || "").slice(0, 2000);
+        if (!OFFER_WORDS.test(text) || wrapperText.get(el) === text) return null;
+        wrapperText.set(el, text);
+        for (const part of offerPartsOf(el)) {
+          const sel = selectorFor(part);
+          if (sel) markElement(part, sel, "heuristic");
+        }
+        // Not settled: a strip like this often appears only after scrolling.
+        return null;
+      }
+      return "ok";
+    }
 
     const cs = getComputedStyle(el);
     if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") return null;
@@ -815,6 +856,15 @@
     // 6500 is just past the consent grace period, so a dialog consent.js could
     // not answer is hidden promptly rather than waiting for the 9s pass.
     [1500, 4000, 6500, 9000].forEach((ms) => setTimeout(run, ms));
+
+    // Offer strips and paywall prompts often appear after the reader scrolls,
+    // by a class change the childList observer never sees. One pass per 1.5s
+    // of scrolling, at most.
+    let scrollPending = null;
+    addEventListener("scroll", () => {
+      if (scrollPending) return;
+      scrollPending = setTimeout(() => { scrollPending = null; run(); }, 1500);
+    }, { passive: true });
 
     addEventListener("keydown", onKeyDown, true);
     addEventListener("keyup", onKeyUp, true);
