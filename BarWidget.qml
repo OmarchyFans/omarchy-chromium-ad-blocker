@@ -84,11 +84,14 @@ BarWidget {
   // ---- updates ----------------------------------------------------------------
   property string version: ""
   property var updateInfo: null
-  property bool updateHidden: false
   readonly property bool updateAvailable: !!updateInfo && updateInfo.update_available === true
                                           && updateInfo.dismissed !== updateInfo.latest
   readonly property bool updateMismatch: !!updateInfo && updateInfo.mismatch === true
-  readonly property bool updatePending: !updateHidden && (updateAvailable || updateMismatch)
+  // What the alert is about: the newer version, or "mismatch". Update… and Later
+  // hide that key only, so the next version (or a new mismatch) shows again.
+  readonly property string updateKey: updateAvailable ? String(updateInfo.latest) : (updateMismatch ? "mismatch" : "")
+  property string updateHiddenKey: ""
+  readonly property bool updatePending: updateKey !== "" && updateKey !== updateHiddenKey
 
   FileView {
     path: root.pluginDir + "/manifest.json"
@@ -111,7 +114,7 @@ BarWidget {
   }
   Timer { interval: 6 * 3600 * 1000; running: true; repeat: true; onTriggered: root.checkUpdates() }
   function runUpdate() {
-    root.updateHidden = true
+    root.updateHiddenKey = root.updateKey
     updatePopup.open = false
     Quickshell.execDetached({
       command: ["/usr/bin/bash", root.cliPath, "update-run", root.updateAvailable ? "all" : "install"],
@@ -120,7 +123,7 @@ BarWidget {
     })
   }
   function dismissUpdate() {
-    root.updateHidden = true
+    root.updateHiddenKey = root.updateKey
     updatePopup.open = false
     if (root.updateAvailable && root.updateInfo.latest)
       Quickshell.execDetached({
