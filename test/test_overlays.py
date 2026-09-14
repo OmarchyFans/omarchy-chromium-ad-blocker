@@ -92,6 +92,8 @@ try:
     check(st["catcher"] != "none", "a transparent click-catcher, like an open menu's, stays")
     check(st["toaster"] == "none", "a 'Save The News' donation ask is removed")
     check(st["softwall"] == "none", "a fixed sale bar goes even at z-index 6")
+    check(cdp.js(ws, "getComputedStyle(document.getElementById('acceptonly')).display") == "none",
+          "a thin cookie bar with only 'Accept' is hidden once it cannot be declined")
     check(cdp.js(ws, "getComputedStyle(document.getElementById('adslot')).display") == "none",
           "a large pinned slot holding only another site's frame is removed as an ad")
     time.sleep(5)  # past every fixed rescan timer, and past the 10.5s reveal

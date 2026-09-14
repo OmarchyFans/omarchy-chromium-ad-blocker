@@ -94,6 +94,17 @@ PROBE = r"""(() => {
 })()"""
 
 
+def probe(ws):
+    # A page caught mid-navigation has no body yet; give it a moment.
+    for attempt in range(3):
+        try:
+            return cdp.js(ws, PROBE)
+        except RuntimeError:
+            if attempt == 2:
+                raise
+            time.sleep(2)
+
+
 def metrics(ws):
     return {m["name"]: m["value"] for m in ws.call("Performance.getMetrics")["metrics"]}
 
@@ -132,7 +143,7 @@ def run_site(i, url):
         ws.drain(16)
         ws = cdp.attach(port, match="http")  # the one page, wherever it redirected
         ws.call("Performance.enable")
-        res["before"] = cdp.js(ws, PROBE)
+        res["before"] = probe(ws)
         # Scroll with the wheel, the way a person would, and time it.
         w, h = 720, 450
         a = metrics(ws); s0 = time.time(); ys = []; lat = []
@@ -154,7 +165,7 @@ def run_site(i, url):
                          "scriptPct": round(100 * (b["ScriptDuration"] - a["ScriptDuration"]) / dt),
                          "layoutPct": round(100 * (b["LayoutDuration"] + b["RecalcStyleDuration"] - a["LayoutDuration"] - a["RecalcStyleDuration"]) / dt)}
         ws.drain(6)  # leftover backdrops are removed once they have stayed empty for 2.5s
-        res["after"] = cdp.js(ws, PROBE)
+        res["after"] = probe(ws)
         png = ws.call("Page.captureScreenshot", {"format": "png"})["data"]
         with open(os.path.join(OUT, f"{i:02d}-{name}.png"), "wb") as fh:
             fh.write(base64.b64decode(png))

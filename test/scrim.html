@@ -15,6 +15,8 @@
 <script>setTimeout(() => { document.getElementById('growwall').insertAdjacentHTML('beforeend', '<p>FALL SALE A smarter fall starts now. Save on your first year of The Post.</p>'); }, 11000);</script>
 <!-- independent.co.uk: a sticky slot over most of the screen holding nothing but a frame from an ad domain. -->
 <div id="adslot" style="position:fixed;left:0;right:0;bottom:0;height:60%;z-index:1000004"><iframe src="http://player.example:8933/embed-frame.html" style="width:100%;height:100%;border:0"></iframe></div>
+<!-- scmp.com: a thin cookie bar with only "Accept", so nothing to decline. -->
+<div id="acceptonly" style="position:fixed;left:0;right:0;bottom:0;height:40px;z-index:999999;background:#fff;font-size:12px">We use cookies to tailor your experience and present relevant ads. <button>Accept</button></div>
 <!-- latimes.com: a dimming backdrop that lets clicks through. -->
 <div id="dim" style="position:fixed;inset:0;z-index:2147483642;background:rgba(0,0,0,.4);pointer-events:none"></div>
 <!-- huffpost.com: the ask is in the page from the start, unpinned and hidden, and a later class change pins and shows it. -->

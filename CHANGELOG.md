@@ -3,6 +3,10 @@
 The bar button reads the newest sections of this file to tell you what changed
 when an update is available. Keep one short line per bullet.
 
+## 1.2.2
+
+- Hides small cookie bars that only offer "Accept"
+
 ## 1.2.1
 
 - Removes sticky ad slots and paywall offers that load in frames, like The Independent's

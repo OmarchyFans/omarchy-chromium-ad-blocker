@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "fans.omarchy.chromium-ad-blocker",
   "name": "Chromium Ad Blocker",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "author": "omarchy.fans",
   "license": "MIT",
   "description": "Removes ads, popups and sales offers in Chromium, declines tracking-cookie dialogs, blocks third-party trackers and sends Global Privacy Control, and clears legal popups without agreeing to anything. Rules and page heuristics act instantly; an optional model on your own GPU classifies the rest. The bar button shows what it has removed.",

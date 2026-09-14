@@ -556,6 +556,9 @@
     // A sales pitch pinned over the page is an interruption at any size worth
     // noticing; a corner "subscribe for $1" box rarely bothers with a close button.
     if (offer && (z >= 1 || cs.position === "fixed") && coverage > 0.02) return "hide";
+    // A cookie banner still up after consent.js had its turn has no way to say
+    // no (scmp.com offers only "Accept"): it goes at the same small size.
+    if (CONSENT_SHAPED.test(text) && z >= 10 && coverage > 0.02) return "hide";
 
     // Tall, high, and mostly links or an iframe: an ad rail rather than a UI bar.
     if (z >= 1000 && coverage > 0.15) return "ask";
