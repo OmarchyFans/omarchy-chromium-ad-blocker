@@ -3,6 +3,11 @@
 The bar button reads the newest sections of this file to tell you what changed
 when an update is available. Keep one short line per bullet.
 
+## 1.2.1
+
+- Removes sticky ad slots and paywall offers that load in frames, like The Independent's
+- Popups that change after they first appear are checked again
+
 ## 1.2.0
 
 - "Clean this site automatically" in the popup, and settings now apply without reloading the page

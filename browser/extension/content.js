@@ -404,7 +404,19 @@
   // An offer whose content lives in a frame shows the page no words at all, so
   // the frame's address is the tell: overlay and offer services, paywalls.
   const OFFER_FRAME =
-    /\/overlay\/|\/offers?\b|paywall|regwall|\/subscribe|subscription|\/promo|tinypass\.com|piano\.io|zephr|poool\.fr|pelcro|\/meter\b|cxense/i;
+    /\/overlay\/|\/offers?\b|paywall|regwall|\/subscribe|subscription|\/promo|\/checkout\b|tinypass\.com|piano\.io|vx-piano\.|zephr|poool\.fr|pelcro|\/meter\b|cxense/i;
+  const siteOf = (host) => host.split(".").slice(-2).join(".");
+  const thirdPartyFramesOnly = (el) => {
+    const frames = [...el.querySelectorAll("iframe")];
+    if (!frames.length) return false;
+    const mine = siteOf(location.hostname);
+    return frames.every((f) => {
+      try {
+        const u = new URL(f.src);
+        return /^https?:$/.test(u.protocol) && siteOf(u.hostname) !== mine;
+      } catch { return false; }
+    });
+  };
   const hasOfferFrame = (el) =>
     [...el.querySelectorAll("iframe[src]")].some((f) => OFFER_FRAME.test(f.src));
 
@@ -515,7 +527,8 @@
         const parts = m[1].split(/[ ,/]+/).filter(Boolean);
         return parts.length > 3 ? parseFloat(parts[3]) : 1;
       })();
-      const dims = alpha >= 0.05 || /blur\(/.test(cs.backdropFilter || "") || parseFloat(cs.opacity) < 1 && alpha > 0;
+      const dims = alpha >= 0.05 || /blur\(/.test(cs.backdropFilter || "") || parseFloat(cs.opacity) < 1 && alpha > 0 ||
+        (cs.backgroundImage || "none") !== "none";
       if (coverage > 0.9 && z >= 100 && dims) {
         if (!emptySince.has(el)) emptySince.set(el, Date.now());
         if (Date.now() - emptySince.get(el) > 2500) return "hide";
@@ -527,6 +540,12 @@
     const interrupts = INTERRUPT_WORDS.test(text) || offer;
     const hasClose = CLOSE_WORDS.test(text) ||
       !!el.querySelector('[aria-label*="close" i],[class*="close" i],[data-dismiss]');
+
+    // High, large, no words of its own, and nothing inside but frames from
+    // other sites: an ad slot (independent.co.uk's sticky footer carried a
+    // frame from an ad domain over 70% of the screen). Blank frames still go
+    // to the model, since the page may fill them with anything.
+    if (z >= 1000 && coverage > 0.15 && !text.trim() && thirdPartyFramesOnly(el)) return "hide";
 
     // A near-fullscreen fixed layer stacked above the page is a modal or its
     // backdrop. Nothing else legitimately does this.
@@ -565,7 +584,7 @@
       const verdict = skipHeuristics ? "ok" : classify(el);
       if (verdict === null) continue; // not settled yet — look again next pass
       settled.add(el);
-      if (verdict === "ok" && !skipHeuristics) watchSettled(el);
+      if (verdict !== "hide" && !skipHeuristics) watchSettled(el);
 
       if (verdict === "hide") {
         const sel = selectorFor(el);
@@ -944,6 +963,9 @@
       settled: settled.has(el), protected: isProtected(el), marked: markedEls.get(el) || null,
       verdict: (() => { try { return classify(el); } catch (e) { return "throws: " + e; } })(),
       started, active: active(), auto: auto(), cookies: settings.cookies,
+      offerFrame: hasOfferFrame(el), frames: [...el.querySelectorAll("iframe")].map((f) => (f.src || "").slice(0, 60)),
+      z: getComputedStyle(el).zIndex, position: getComputedStyle(el).position,
+      coverage: +((el.getBoundingClientRect().width * el.getBoundingClientRect().height) / (innerWidth * innerHeight)).toFixed(2),
     };
   };
 
