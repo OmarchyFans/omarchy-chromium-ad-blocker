@@ -13,6 +13,8 @@ CONFIG="$CONFIG_DIR/config.json"
 DATA_DIR="$HOME/.local/share/omarchy-adblock"
 RULES="$DATA_DIR/rules"
 USER_RULES="$DATA_DIR/user"
+# The update helper next to this script (docs/update-alerts.md), never one on PATH.
+UPDATE_SH="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.." && pwd)/lib/update.sh"
 
 usage() {
   cat <<USAGE
@@ -40,6 +42,10 @@ Usage: omarchy-adblock <command>
   model <id>          Set the Anthropic model
   log [n]             Last n lines of the host error log
   restart             Fully restart Chromium so changes take effect
+  update-check [VERSION] [--force]
+                      Is a newer version of the plugin published? (JSON, cached 6 h)
+  update-dismiss <version> | update-run [all|install]
+                      Stop offering that version; open a terminal that updates the plugin
 USAGE
 }
 
@@ -309,6 +315,9 @@ log)
   fi
   ;;
 
+update-check)   exec bash "$UPDATE_SH" check "${@:2}" ;;
+update-dismiss) exec bash "$UPDATE_SH" dismiss "${@:2}" ;;
+update-run)     exec bash "$UPDATE_SH" run "${@:2}" ;;
 restart)
   # The host manifest and the extension are both read at browser startup, so a
   # new window is not enough — every Chromium process has to go.
