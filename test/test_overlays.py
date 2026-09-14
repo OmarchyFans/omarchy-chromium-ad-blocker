@@ -94,11 +94,14 @@ try:
     check(st["softwall"] == "none", "a fixed sale bar goes even at z-index 6")
     time.sleep(5)  # past every fixed rescan timer, and past the 10.5s reveal
     st = cdp.js(ws, """(() => { const d = (id) => getComputedStyle(document.getElementById(id)).display;
-        return {dim: d('dim'), late: d('late-toaster'), fighter: d('fighter')}; })()""")
+        const seen = (id) => { const c = getComputedStyle(document.getElementById(id)); return c.display !== 'none' && c.visibility !== 'hidden' && +c.opacity > 0; };
+        return {dim: d('dim'), late: d('late-toaster'), fighter: d('fighter'), grow: d('growwall'), inlineFighterVisible: seen('inline-fighter')}; })()""")
     print("   ", st)
     check(st["dim"] == "none", "a dimming backdrop goes even when it lets clicks through")
     check(st["late"] == "none", "an ask that is hidden at first and shown later by a class change goes when it appears")
     check(st["fighter"] == "none", "an ad the site forces back with an inline !important stays hidden")
+    check(st["grow"] == "none", "a pinned bar judged harmless is removed when it later fills in with a sale")
+    check(not st["inlineFighterVisible"], "a popup the site forces back after an inline hide stays out of sight")
 
     print("\n[an embedded player that swallows the wheel]")
     ws = goto(ws, "embed-scroll.html", 5)

@@ -1,0 +1,20 @@
+<!doctype html><title>legal loop</title><body style="margin:0;font:15px system-ui">
+<main><h1>News</h1><script>for (let i = 0; i < 60; i++) document.write(`<p>Story ${i}.</p>`);</script></main>
+<script>
+ // A site that puts its notice straight back whenever it is hidden.
+ window.__inserts = 0;
+ const put = () => {
+   const n = document.createElement('div');
+   n.className = 'privacy-notice';
+   n.style.cssText = 'position:fixed;left:0;right:0;bottom:0;height:90px;z-index:9000;background:#222;color:#fff;padding:16px';
+   n.innerHTML = 'By continuing to use this site you accept our Terms of Use and Privacy Policy. <button>OK</button>';
+   document.body.appendChild(n);
+   window.__inserts++;
+ };
+ put();
+ setInterval(() => {
+   const n = document.querySelector('.privacy-notice');
+   if (n && getComputedStyle(n).display === 'none') { n.remove(); put(); }
+ }, 250);
+</script>
+</body>

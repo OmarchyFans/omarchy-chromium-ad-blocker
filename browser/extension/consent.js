@@ -143,6 +143,7 @@ globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
 
   let settings = { cookies: false, legal: false, enabled: true };
   let done = false;
+  const legalSeen = new Map();
 
   // --------------------------------------------------------------- the list
 
@@ -437,9 +438,15 @@ globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
       // with no way to say no.
       if (buttons.some((b) => REJECT_TEXT.test(textOf(b)))) continue;
       if (buttons.length > 2) continue;
+      // A site that puts the same notice straight back is counted once, and
+      // after five returns it is left alone rather than fought on every frame.
+      const sig = `${el.tagName}|${el.className}|${textOf(el).slice(0, 80)}`;
+      const seen = (legalSeen.get(sig) || 0) + 1;
+      legalSeen.set(sig, seen);
+      if (seen > 5) continue;
       el.style.setProperty("display", "none", "important");
       el.setAttribute("data-omarchy-legal", "removed");
-      n++;
+      if (seen === 1) n++;
       // The dialog often sits in a full-screen wrapper that is nothing but a
       // backdrop once the dialog is gone, and still takes every click.
       for (let up = el.parentElement; up && up !== document.body; up = up.parentElement) {
@@ -569,10 +576,14 @@ globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
     // for anything added that names itself a consent or legal dialog, and look
     // again as it animates in. Only the added node's own id, class and first
     // words are read, so a busy page costs a regex per insertion, not a scan.
-    const SHAPED = /cookie|consent|onetrust|cmp|gdpr|ccpa|privacy|didomi|usercentrics|sp_message|truste|qc-cmp|terms/i;
+    // Not "privacy" or "terms": on a news site half the teasers inserted while
+    // scrolling mention one, and every match costs a full dialog scan.
+    const SHAPED = /cookie|consent|onetrust|cmp|gdpr|ccpa|didomi|usercentrics|sp_message|truste|qc-cmp|iubenda|cookiebot|appconsent/i;
     let queued = false;
+    let cycles = 0;
     const watcher = new MutationObserver((records) => {
       if (done || queued) return;
+      if (++cycles > 12) { watcher.disconnect(); return; }
       for (const rec of records) {
         for (const node of rec.addedNodes) {
           if (node.nodeType !== 1) continue;

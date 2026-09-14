@@ -35,6 +35,50 @@
   // is usually shown later by a class or style change, which the childList
   // observer never sees. Watch just those elements, and look again when they
   // change.
+  // A pinned bar judged harmless can turn into an offer later: washingtonpost.com
+  // shows "Collapse notification" first and fills in "FALL SALE … save on your
+  // first year" afterwards. Each pinned element settled as harmless is watched,
+  // and a change to its content or class sends it back for another look — at
+  // most once every two seconds per element.
+  const watchedSettled = new WeakSet();
+  let settledPending = null;
+  const watchSettled = (el) => {
+    if (watchedSettled.has(el) || isProtected(el)) return;
+    watchedSettled.add(el);
+    let last = 0;
+    new MutationObserver(() => {
+      const now = Date.now();
+      if (now - last < 2000) return;
+      last = now;
+      settled.delete(el);
+      clearTimeout(settledPending);
+      settledPending = setTimeout(() => { try { scan(); } catch { /* fine */ } }, 400);
+    }).observe(el, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["class", "style", "hidden"] });
+  };
+  // Most elements are settled the first time they are seen static. A popup
+  // that sits in the page unpinned and hidden, then gets position:fixed from a
+  // class change (huffpost.com's campaign toaster), would never be looked at
+  // again. Class and style changes are collected page-wide, cheaply, and any
+  // settled element that has become pinned goes back for another look.
+  const restyled = new Set();
+  let restyledTimer = null;
+  const restyleObserver = new MutationObserver((records) => {
+    for (const r of records) {
+      if (r.target.nodeType === 1 && restyled.size < 500) restyled.add(r.target);
+    }
+    if (restyledTimer) return;
+    restyledTimer = setTimeout(() => {
+      restyledTimer = null;
+      let again = false;
+      for (const el of restyled) {
+        if (!settled.has(el) || markedEls.has(el) || !el.isConnected) continue;
+        const pos = getComputedStyle(el).position;
+        if (pos === "fixed" || pos === "sticky") { settled.delete(el); again = true; }
+      }
+      restyled.clear();
+      if (again) { try { scan(); } catch { /* fine */ } }
+    }, 500);
+  });
   const watchedHidden = new WeakSet();
   let hiddenPending = null;
   const hiddenObserver = new MutationObserver(() => {
@@ -198,12 +242,17 @@
   const enforcer = new MutationObserver((records) => {
     if (!active()) return; // turned off or allowlisted: the restore must stick
     for (const { target: el } of records) {
-      if (!markedEls.has(el) || !committed.has(markedEls.get(el))) continue;
+      if (!markedEls.has(el) || !(committed.has(markedEls.get(el)) || inlineHidden.has(el))) continue;
       if (el.style.getPropertyValue("display") === "none" && el.style.getPropertyPriority("display") === "important") continue;
       const n = (reasserts.get(el) || 0) + 1;
       if (n > 10) continue;
       reasserts.set(el, n);
+      // A site that forces display back usually forces visibility too, rarely
+      // opacity or pointer-events: hold all four.
       el.style.setProperty("display", "none", "important");
+      el.style.setProperty("opacity", "0", "important");
+      el.style.setProperty("pointer-events", "none", "important");
+      el.style.setProperty("visibility", "hidden", "important");
     }
   });
   const enforceInline = (selector) => {
@@ -232,8 +281,11 @@
   // class-based selector for one overlay ("div.fixed.inset-0.z-50") routinely
   // matches the login modal the site opens later, and a stylesheet rule would
   // take that with it.
+  const inlineHidden = new WeakSet();
   const commitElement = (el, selector) => {
     el.style.setProperty("display", "none", "important");
+    inlineHidden.add(el);
+    enforcer.observe(el, { attributes: true, attributeFilter: ["style"] });
   };
 
   // Remove everything currently marked. This is the only thing that hides.
@@ -513,6 +565,7 @@
       const verdict = skipHeuristics ? "ok" : classify(el);
       if (verdict === null) continue; // not settled yet — look again next pass
       settled.add(el);
+      if (verdict === "ok" && !skipHeuristics) watchSettled(el);
 
       if (verdict === "hide") {
         const sel = selectorFor(el);
@@ -882,6 +935,18 @@
 
   // ------------------------------------------------------------------- start
 
+  // For tests and debugging: what the ad layer thinks of an element. Lives in
+  // the extension's isolated world, which the page cannot see or call.
+  globalThis.OMARCHY_EXPLAIN = (selector) => {
+    const el = document.querySelector(selector);
+    if (!el) return "not found";
+    return {
+      settled: settled.has(el), protected: isProtected(el), marked: markedEls.get(el) || null,
+      verdict: (() => { try { return classify(el); } catch (e) { return "throws: " + e; } })(),
+      started, active: active(), auto: auto(), cookies: settings.cookies,
+    };
+  };
+
   let started = false;
   const start = (cachedRules, userRules) => {
     if (started) return;
@@ -917,6 +982,10 @@
     } else {
       run();
     }
+
+    restyleObserver.observe(document.documentElement, {
+      attributes: true, subtree: true, attributeFilter: ["class", "style"],
+    });
 
     // Popups appear on a timer or on scroll, long after load. Rescan on DOM
     // churn, throttled, so a busy page does not turn this into a hot loop.
@@ -1006,6 +1075,10 @@
             el.style.removeProperty("display");
             hiddenInline.add(el);
           }
+          // And whatever the enforcer added against a site that fought back.
+          if (el.style.getPropertyValue("opacity") === "0") el.style.removeProperty("opacity");
+          if (el.style.getPropertyValue("pointer-events") === "none") el.style.removeProperty("pointer-events");
+          if (el.style.getPropertyValue("visibility") === "hidden") el.style.removeProperty("visibility");
         }
         return;
       }

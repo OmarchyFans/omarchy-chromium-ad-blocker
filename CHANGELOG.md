@@ -3,6 +3,14 @@
 The bar button reads the newest sections of this file to tell you what changed
 when an update is available. Keep one short line per bullet.
 
+## 1.2.0
+
+- "Clean this site automatically" in the popup, and settings now apply without reloading the page
+- Pages keep scrolling over embedded audio and video players
+- Removes leftover dimming backdrops, sales and donation bars, and popups that appear late
+- Declines cookie walls in frames and in French, German, Spanish, Italian, Dutch, Portuguese and Swedish
+- No longer fights a site that keeps putting its notice back, which slowed some pages down
+
 ## 1.1.0
 
 - The bar button shows a dot when a new version is out; click it for what changed and a one-click update

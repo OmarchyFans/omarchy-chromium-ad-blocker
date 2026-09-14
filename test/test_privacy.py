@@ -183,6 +183,18 @@ try:
     cdp.cjs(ws, cdp.isolated_context(ws), "chrome.storage.local.set({cookies:true}).then(()=>1)")
     time.sleep(1.5)
 
+    print("\n[a site that keeps putting its notice back]")
+    before = json.loads(open(os.path.expanduser("~/.local/share/omarchy-adblock/stats.json")).read())["sites"].get("site.adtest.example", {}).get("legal", 0)
+    ws = goto(ws, "legal-loop.html", 10)
+    inserts = cdp.js(ws, "window.__inserts")
+    time.sleep(3)
+    inserts2 = cdp.js(ws, "window.__inserts")
+    time.sleep(2.5)
+    after = json.loads(open(os.path.expanduser("~/.local/share/omarchy-adblock/stats.json")).read())["sites"].get("site.adtest.example", {}).get("legal", 0)
+    print("    inserts:", inserts, "->", inserts2, "| legal counted:", after - before)
+    check(after - before <= 1, "the same notice put back again and again is counted once")
+    check(inserts <= 8 and inserts2 == inserts, "and after a few returns it is left alone instead of fought forever")
+
     print("\n[the numbers]")
     time.sleep(2.5)
     raw = open(os.path.expanduser("~/.local/share/omarchy-adblock/stats.json")).read()

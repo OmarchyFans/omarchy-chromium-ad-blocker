@@ -153,7 +153,7 @@ def run_site(i, url):
                          "busyPct": round(100 * (b["TaskDuration"] - a["TaskDuration"]) / dt),
                          "scriptPct": round(100 * (b["ScriptDuration"] - a["ScriptDuration"]) / dt),
                          "layoutPct": round(100 * (b["LayoutDuration"] + b["RecalcStyleDuration"] - a["LayoutDuration"] - a["RecalcStyleDuration"]) / dt)}
-        ws.drain(3)
+        ws.drain(6)  # leftover backdrops are removed once they have stayed empty for 2.5s
         res["after"] = cdp.js(ws, PROBE)
         png = ws.call("Page.captureScreenshot", {"format": "png"})["data"]
         with open(os.path.join(OUT, f"{i:02d}-{name}.png"), "wb") as fh:
