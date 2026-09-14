@@ -233,6 +233,25 @@ flags and the host manifest are only read at browser startup.
 **Requirements:** Chromium (ships with Omarchy), `python3`, `openssl`.
 Optional: a local OpenAI-compatible model server, see below.
 
+### Updates
+
+About once every six hours the bar button fetches this repository's
+`manifest.json` (one small HTTPS request, no personal data). If a newer version
+is out, a dot appears on the button and the next click shows what changed, from
+`CHANGELOG.md`. *Update…* opens a terminal that runs `omarchy plugin update`
+(it shows the diff and asks), then `install.sh` (asks again), then offers to
+restart Chromium, which loads the new extension only at a complete start.
+*Later* hides that version. Set `"update_check": false` in
+`~/.config/omarchy-adblock/config.json` to turn the check off. By hand:
+
+```bash
+omarchy plugin update fans.omarchy.chromium-ad-blocker
+~/.config/omarchy/plugins/fans.omarchy.chromium-ad-blocker/install.sh
+omarchy-adblock restart
+```
+
+See [docs/update-alerts.md](docs/update-alerts.md) for how it is built.
+
 ## Remove
 
 ```bash
@@ -294,6 +313,10 @@ Nothing, on the default backend. On either backend:
   addresses, single-label names like `nas`, and `.local` / `.lan` / `.internal` /
   `.home.arpa`.
 - Sites in the popup's allowlist are skipped before any layer runs.
+- **The update check** is the one request the plugin makes on its own: this
+  repository's `manifest.json` (and `CHANGELOG.md` when there is something
+  new), about every six hours, with no personal data. `"update_check": false`
+  in `~/.config/omarchy-adblock/config.json` turns it off.
 
 ## It refuses to break the page
 
