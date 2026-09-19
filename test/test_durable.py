@@ -17,6 +17,11 @@ ok=True
 def check(c,m):
     global ok; print(("  PASS  " if c else "  FAIL  ")+m); ok=ok and c
 try:
+    ws = cdp.attach(9229); ctx = cdp.isolated_context(ws)
+    # The blocker ships off; turn it on the way the popup does, then reload.
+    cdp.cjs(ws, ctx, "chrome.storage.local.set({enabled:true}).then(()=>1)")
+    time.sleep(1)
+    ws.call("Page.enable"); ws.call("Page.reload", {"ignoreCache": True}); time.sleep(2)
     ws = cdp.attach(9229); ctx = cdp.isolated_context(ws); time.sleep(8)
     st = cdp.js(ws, """(() => {
       const b = document.querySelector('.sponsored-box');
@@ -34,7 +39,7 @@ try:
     st2 = cdp.js(ws, "getComputedStyle(document.querySelector('.sponsored-box')).display")
     check(st2 == "none", "the chord removes it with everything else")
 
-    cdp.cjs(ws, ctx, "chrome.storage.local.set({mode:'auto'}).then(()=>1)")
+    cdp.cjs(ws, ctx, "chrome.storage.local.set({enabled:true, mode:'auto'}).then(()=>1)")
     ws.call("Page.enable"); ws.call("Page.reload", {"ignoreCache": True}); time.sleep(2)
     ws = cdp.attach(9229); time.sleep(8)
     st3 = cdp.js(ws, """(() => ({

@@ -7,6 +7,18 @@ ship, so this reads the page instead: fast rules and page heuristics act
 instantly, and an optional model on your own GPU classifies the rest without
 sending the page anywhere.
 
+**It ships off.** Nothing is touched on any page until you tick **1 · Block ads**
+in the extension popup, per Chromium profile. To stop loading it in Chromium at
+all, which is what you want when something else is misbehaving and you are
+ruling this out:
+
+```bash
+omarchy-adblock off      # and: omarchy-adblock on
+```
+
+Both ask before closing Chromium, and do nothing to a running browser when
+there is no terminal to ask on.
+
 ## Features
 
 - **Removes ads and popups.** Ad slots, sticky rails, newsletter walls, "turn
@@ -50,7 +62,7 @@ Three opt-ins, each independent:
 
 | | Default | What it does |
 |---|---|---|
-| **1. Block ads** | on, asks first | Ads, popups and overlays. Hold **Ctrl+Alt** to see them, **Delete** to remove them, or turn on automatic removal. |
+| **1. Block ads** | off | Ads, popups and overlays. Hold **Ctrl+Alt** to see them, **Delete** to remove them, or turn on automatic removal. |
 | **2. Block tracking cookies** | off | Declines consent dialogs, sends Global Privacy Control, blocks third-party trackers, clears tracker cookies. |
 | **3. Block legal popups** | off | Declines terms and privacy prompts that can be declined, and removes notices that offer no choice. |
 

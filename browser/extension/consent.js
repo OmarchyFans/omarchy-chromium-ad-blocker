@@ -141,7 +141,7 @@ globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
   // Inside a bot check's own frame there is nothing to decline or remove.
   if (OMARCHY_CHALLENGE_HOSTS.test(HOST)) return;
 
-  let settings = { cookies: false, legal: false, enabled: true };
+  let settings = { cookies: false, legal: false, enabled: false };
   let done = false;
   const legalSeen = new Map();
 
@@ -515,7 +515,7 @@ globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
     chrome.storage.local.get(["enabled", "cookies", "legal", "allowlist"], (s) => {
       const turnedOn = (s.cookies === true && !settings.cookies) || (s.legal === true && !settings.legal) ||
         (s.enabled !== false && !settings.enabled);
-      settings = { enabled: s.enabled !== false, cookies: s.cookies === true, legal: s.legal === true };
+      settings = { enabled: s.enabled === true, cookies: s.cookies === true, legal: s.legal === true };
       const allow = s.allowlist || [];
       if (!settings.enabled || allow.some((h) => HOST === h || HOST.endsWith("." + h)) || !turnedOn) return;
       done = false;
@@ -526,7 +526,7 @@ globalThis.OMARCHY_UNLOCK_SCROLL = globalThis.OMARCHY_UNLOCK_SCROLL || (() => {
 
   chrome.storage.local.get(["enabled", "cookies", "legal", "allowlist"], (s) => {
     settings = {
-      enabled: s.enabled !== false,
+      enabled: s.enabled === true,
       cookies: s.cookies === true,
       legal: s.legal === true,
     };

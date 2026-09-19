@@ -28,7 +28,14 @@ def check(cond, msg):
 
 try:
     ws = cdp.attach(9227)
-    cdp.js(ws, "1"); time.sleep(8)
+    cdp.js(ws, "1")
+    # The blocker ships off; turn it on the way the popup does, then reload.
+    cdp.cjs(ws, cdp.isolated_context(ws), "chrome.storage.local.set({enabled:true}).then(()=>1)")
+    time.sleep(1)
+    ws.call("Page.enable"); ws.call("Page.reload", {"ignoreCache": True})
+    time.sleep(2)
+    ws = cdp.attach(9227)
+    time.sleep(8)
 
     # Clear the full-screen overlays first with the chord — otherwise the thing
     # on top at any coordinate is the cookie wall, which is correct but is not

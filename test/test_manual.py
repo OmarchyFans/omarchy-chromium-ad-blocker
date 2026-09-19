@@ -29,6 +29,12 @@ def show(label, st):
 try:
     ws = cdp.attach()
     cdp.js(ws, "1")
+    # The blocker ships off; turn it on the way the popup does, then reload.
+    cdp.cjs(ws, cdp.isolated_context(ws), "chrome.storage.local.set({enabled:true}).then(()=>1)")
+    time.sleep(1)
+    ws.call("Page.enable"); ws.call("Page.reload", {"ignoreCache": True})
+    time.sleep(2)
+    ws = cdp.attach()
     time.sleep(9)   # let the late modal appear and the scans settle
 
     st0 = cdp.js(ws, "window.__state()")

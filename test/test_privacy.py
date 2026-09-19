@@ -51,7 +51,7 @@ try:
     ws = goto(ws, "legal.html", 1)
 
     ctx = cdp.isolated_context(ws)
-    cdp.cjs(ws, ctx, "chrome.storage.local.set({cookies:true, legal:true}).then(()=>1)")
+    cdp.cjs(ws, ctx, "chrome.storage.local.set({enabled:true, cookies:true, legal:true}).then(()=>1)")
     time.sleep(1.5)  # let the worker switch the tracker ruleset on
     sw = cdp.attach_type(PORT, "service_worker")
     rulesets = cdp.ajs(sw, "chrome.declarativeNetRequest.getEnabledRulesets()")

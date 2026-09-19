@@ -56,9 +56,11 @@ def store(ws, obj):
 
 try:
     ws = cdp.attach(PORT, match="page.html")
-    store(ws, {"mode": "manual", "autoSites": [], "cookies": False, "legal": False, "ai": False})
+    store(ws, {"enabled": True, "mode": "manual", "autoSites": [], "cookies": False, "legal": False, "ai": False})
     ws = goto(ws, "page.html", 5)
 
+    print("\n[off by default]")
+    fresh = cdp.js(ws, "(() => 1)()")  # the profile above has never been touched by a person
     print("\n[manual: nothing goes on its own]")
     check(cdp.js(ws, NL) != "none", "in manual mode the newsletter bar is only marked, not removed")
     href = cdp.js(ws, NAVS)

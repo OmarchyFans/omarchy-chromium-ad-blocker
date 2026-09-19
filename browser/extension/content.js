@@ -22,7 +22,10 @@
   const HIDE = "display:none!important;visibility:hidden!important;" +
                "opacity:0!important;pointer-events:none!important;";
 
-  let settings = { enabled: true, ai: true, mode: "manual", allowlist: [], cookies: false };
+  // Off until it is turned on. A browser extension that starts rewriting pages
+  // before anyone asked it to is the thing people rightly distrust, and an
+  // unexplained page is much harder to diagnose than a missing one.
+  let settings = { enabled: false, ai: true, mode: "manual", allowlist: [], cookies: false };
   // With opt-in 2 on, a consent dialog is consent.js's to answer. Hiding it here
   // first would leave the site with no answer — it re-prompts next page — and
   // count a decline as an ad. So consent-shaped overlays wait a few seconds for
@@ -1065,7 +1068,7 @@
 
   const readSettings = (s, base = {}) => ({
     ...base,
-    enabled: s.enabled !== false,
+    enabled: s.enabled === true,
     ai: s.ai !== false,
     mode: s.mode === "auto" ? "auto" : "manual",
     allowlist: s.allowlist || [],

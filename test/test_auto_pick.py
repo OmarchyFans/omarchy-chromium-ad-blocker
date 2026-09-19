@@ -32,7 +32,7 @@ def fresh():
 
 try:
     ws, ctx = fresh()
-    cdp.cjs(ws, ctx, "chrome.storage.local.set({mode:'auto'}).then(()=>'set')")
+    cdp.cjs(ws, ctx, "chrome.storage.local.set({enabled:true, mode:'auto'}).then(()=>'set')")
     ws.call("Page.enable"); ws.call("Page.reload", {"ignoreCache": True})
     time.sleep(2)
     ws, ctx = fresh()

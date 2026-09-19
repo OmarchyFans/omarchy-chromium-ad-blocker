@@ -20,7 +20,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
     ["enabled", "ai", "mode", "cookies", "cookiesThirdParty", "history", "legal", "allowlist", "autoSites"]);
   const allowKey = registrableHost(host);
 
-  $("ads").checked = s.enabled !== false;
+  $("ads").checked = s.enabled === true;
   $("mode").checked = s.mode === "auto";
   $("ai").checked = s.ai !== false;
   $("cookies").checked = s.cookies === true;
@@ -31,7 +31,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
   $("siteAutoHost").textContent = host ? allowKey : "this site";
   const syncSiteAuto = () => {
     const everywhere = $("mode").checked;
-    $("siteAuto").disabled = everywhere || !host;
+    $("siteAuto").disabled = everywhere || !host || !$("ads").checked;
     $("siteAuto").checked = everywhere || (s.autoSites || []).includes(allowKey);
     $("siteAutoSub").textContent = everywhere
       ? "Already on for every site"
@@ -39,10 +39,17 @@ chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
   };
   syncSiteAuto();
 
+  // The first switch is the blocker itself: with it off nothing runs, so the
+  // other two are shown as unavailable rather than as promises.
   const syncBodies = () => {
-    $("adsBody").hidden = !$("ads").checked;
-    $("cookiesBody").hidden = !$("cookies").checked;
-    $("legalBody").hidden = !$("legal").checked;
+    const on = $("ads").checked;
+    $("adsBody").hidden = !on;
+    $("cookiesBody").hidden = !on || !$("cookies").checked;
+    $("legalBody").hidden = !on || !$("legal").checked;
+    $("adsSub").textContent = on
+      ? "Ads, popups and overlays"
+      : "Off — nothing on any page is touched";
+    for (const id of ["cookies", "legal", "allow", "forget"]) $(id).disabled = !on;
   };
   syncBodies();
 
@@ -96,6 +103,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
       chrome.storage.local.set({ [key]: map(e.target.checked) }, () => {
         syncBodies();
         syncSiteAuto();
+        showStats();
       });
     };
   };

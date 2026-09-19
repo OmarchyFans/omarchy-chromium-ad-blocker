@@ -21,6 +21,8 @@ usage() {
 Usage: omarchy-adblock <command>
 
   status              What is installed, configured and learned
+  off                 Stop loading the extension in Chromium at all
+  on                  Load it again (both ask before closing Chromium; --yes skips)
   dashboard           Status, statistics and incognito access, then wait (the bar button opens this)
   mode [manual|auto]  Manual: nothing goes until you press the chord (default).
                       Auto: ads are removed as each page loads.
@@ -96,24 +98,106 @@ PY2
 
 chromium_running() { pgrep -x chromium >/dev/null 2>&1; }
 
+# Closing Chromium loses whatever is open, so it is never done silently: with no
+# terminal to ask on (a script, a hook, an agent), the answer is no and the
+# change waits for the next start instead.
+WAS_RUNNING=0
+close_chromium() {
+  local why="$1" reply
+  WAS_RUNNING=0
+  chromium_running || return 0
+  WAS_RUNNING=1
+  if (( YES )); then
+    :
+  elif [[ -t 0 ]]; then
+    read -r -p "$why Close Chromium and reopen it now? [y/N] " reply
+    [[ $reply =~ ^[Yy] ]] || return 1
+  else
+    return 1
+  fi
+  pkill -x chromium 2>/dev/null || true
+  for _ in $(seq 1 50); do chromium_running || break; sleep 0.2; done
+  chromium_running && { echo "Chromium did not close." >&2; return 1; }
+  return 0
+}
+
+reopen_chromium() {
+  (( WAS_RUNNING )) || return 0
+  setsid -f chromium >/dev/null 2>&1 || true
+  echo "Chromium restarted."
+}
+
+REPO_DIR="$(cd -- "$(dirname -- "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+EXT_DIR="$REPO_DIR/browser/extension"
+FLAG_FILES=(chromium-flags.conf chrome-flags.conf brave-flags.conf)
+
+# Is the extension on Chromium's --load-extension line?
+ext_loaded() {
+  grep -qsF -- "$EXT_DIR" "$HOME/.config/chromium-flags.conf"
+}
+
+# Add or remove the extension from every flags file that exists. This is the
+# off switch that works when the popup cannot be reached: the extension is not
+# loaded at all, so nothing of it runs anywhere, in any profile.
+ext_flags() {
+  local want="$1" file changed=0
+  for flags in "${FLAG_FILES[@]}"; do
+    file="$HOME/.config/$flags"
+    [[ -f $file ]] || continue
+    python3 - "$file" "$EXT_DIR" "$want" <<'PY3' && changed=1
+import pathlib, sys
+path, ext, want = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+lines = path.read_text().splitlines()
+out, seen = [], False
+for line in lines:
+    if line.startswith("--load-extension="):
+        seen = True
+        paths = [p for p in line.split("=", 1)[1].split(",") if p]
+        if want == "on" and ext not in paths:
+            paths.append(ext)
+        elif want == "off":
+            paths = [p for p in paths if p != ext]
+        # An empty --load-extension= is read as a path Chromium cannot find.
+        if not paths:
+            continue
+        line = "--load-extension=" + ",".join(paths)
+    out.append(line)
+if want == "on" and not seen:
+    out.append("--load-extension=" + ext)
+path.write_text("\n".join(out) + "\n")
+PY3
+  done
+  (( changed ))
+}
+
+set_extension() {
+  local want="$1"
+  if [[ $want == on ]] && ext_loaded; then
+    echo "Already on."
+  elif [[ $want == off ]] && ! ext_loaded; then
+    echo "Already off."
+  else
+    ext_flags "$want" || { echo "No Chromium flags file to edit." >&2; exit 1; }
+    echo "Ad blocker $want: the extension is $([[ $want == on ]] && echo "loaded" || echo "not loaded") from the next Chromium start."
+  fi
+  if close_chromium "Chromium reads its extensions only at startup."; then
+    reopen_chromium
+  else
+    echo "Left Chromium alone; it takes effect the next time you start it (omarchy-adblock restart)."
+  fi
+}
+
 set_incognito() {
-  local want="$1" was_running=0
-  if chromium_running; then
-    was_running=1
-    echo "Closing Chromium: it rewrites these settings when it exits."
-    pkill -x chromium 2>/dev/null || true
-    for _ in $(seq 1 50); do chromium_running || break; sleep 0.2; done
-    if chromium_running; then
-      echo "Chromium did not close. Close it and run this again." >&2
-      exit 1
-    fi
+  local want="$1"
+  # Chromium rewrites these settings when it exits, so they can only be changed
+  # with it closed.
+  if ! close_chromium "Chromium overwrites this setting when it exits."; then
+    echo "Nothing changed — close Chromium and run this again." >&2
+    exit 1
   fi
   echo "Allow in Incognito:"
   incognito_prefs "$want"
-  if (( was_running )); then
-    setsid -f chromium >/dev/null 2>&1 || true
-    echo "Chromium reopened."
-  fi
+  reopen_chromium
 }
 
 # One helper for every scalar read, so a hand-edited config with a missing key
@@ -157,17 +241,27 @@ except Exception:
 ' "$1"
 }
 
+YES=0
+for a in "$@"; do [[ $a == --yes || $a == -y ]] && YES=1; done
+set -- "${@/--yes/}"; set -- "${@/-y/}"
+
 case "${1:-status}" in
+off | on)
+  set_extension "$1"
+  ;;
+
 status)
   backend=$(cfg_get backend local)
   echo "omarchy-chromium-ad-blocker"
   echo
-  ext_dir="$(cd -- "$(dirname -- "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)/browser/extension"
-  if grep -qsF -- "$ext_dir" "$HOME/.config/chromium-flags.conf"; then
-    echo "  Extension   loaded via ~/.config/chromium-flags.conf"
+  if ext_loaded; then
+    echo "  Extension   loaded via ~/.config/chromium-flags.conf (turn off with: omarchy-adblock off)"
+  elif [[ -f "$HOME/.config/chromium-flags.conf" ]]; then
+    echo "  Extension   OFF — not loaded by Chromium (turn on with: omarchy-adblock on)"
   else
     echo "  Extension   NOT in chromium-flags.conf — run ./install.sh"
   fi
+  echo "  Blocking    off until you tick '1 · Block ads' in the extension popup, per Chromium profile"
   if [[ -f "$HOME/.config/chromium/NativeMessagingHosts/com.omarchy.adblock.json" ]]; then
     echo "  Host        registered"
   else

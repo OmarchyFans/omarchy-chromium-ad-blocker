@@ -38,6 +38,12 @@ def check(c, m):
 try:
     ws = cdp.attach(9240, match="page.html")
     print("page:", cdp.js(ws, "location.host"))
+    # The blocker ships off; turn it on the way the popup does, then reload.
+    cdp.cjs(ws, cdp.isolated_context(ws), "chrome.storage.local.set({enabled:true}).then(()=>1)")
+    time.sleep(1)
+    ws.call("Page.enable"); ws.call("Page.reload", {"ignoreCache": True})
+    time.sleep(2)
+    ws = cdp.attach(9240, match="page.html")
     # the model pass is a background round trip; give the GPU its 5-6 seconds
     time.sleep(22)
     st = cdp.js(ws, "window.__state()")

@@ -3,6 +3,13 @@
 The bar button reads the newest sections of this file to tell you what changed
 when an update is available. Keep one short line per bullet.
 
+## 1.3.0
+
+- The blocker now ships **off**: nothing is touched until you tick "1 · Block ads"
+- `omarchy-adblock off` and `on` stop and start loading the extension in Chromium
+- Turning the blocker off in the popup also stops tracker blocking and Global Privacy Control
+- `omarchy-adblock off`, `on` and `incognito` ask before closing Chromium, and never close it from a script
+
 ## 1.2.2
 
 - Hides small cookie bars that only offer "Accept"

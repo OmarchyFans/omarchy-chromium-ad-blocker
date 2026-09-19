@@ -201,11 +201,14 @@ const TRACKER_COOKIE = /^(_ga|_gid|_gat|_gcl_|__utm|_fbp|_fbc|fr$|_hj|ajs_|mp_|a
 let privacy = { cookies: false, cookiesThirdParty: false, history: false };
 
 async function applyPrivacySettings() {
-  const s = await chrome.storage.local.get(["cookies", "cookiesThirdParty", "history"]);
+  const s = await chrome.storage.local.get(["enabled", "cookies", "cookiesThirdParty", "history"]);
+  // Everything here is part of the blocker: with the blocker off, no tracker
+  // rules, no Sec-GPC header and no cookie sweeping.
+  const on = s.enabled === true;
   privacy = {
-    cookies: s.cookies === true,
+    cookies: on && s.cookies === true,
     cookiesThirdParty: s.cookiesThirdParty === true,
-    history: s.history === true,
+    history: on && s.history === true,
   };
 
   try {
@@ -248,7 +251,7 @@ async function applyPrivacySettings() {
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local") return;
-  if ("cookies" in changes || "cookiesThirdParty" in changes || "history" in changes) {
+  if ("enabled" in changes || "cookies" in changes || "cookiesThirdParty" in changes || "history" in changes) {
     applyPrivacySettings();
   }
 });

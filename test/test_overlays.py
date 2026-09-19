@@ -40,7 +40,18 @@ def goto(ws, page, wait):
 try:
     ws = cdp.attach(PORT, match="page.html")
     ctx = cdp.isolated_context(ws)
-    cdp.cjs(ws, ctx, "chrome.storage.local.set({mode:'auto', cookies:true, legal:true}).then(()=>1)")
+
+    print("\n[a profile nobody has touched]")
+    ws = goto(ws, "scrim.html", 6)
+    st = cdp.js(ws, """(() => { const d = (id) => getComputedStyle(document.getElementById(id)).display;
+        return {toaster: d('toaster'), softwall: d('softwall'), marked: document.querySelectorAll('[data-omarchy-ad]').length,
+                style: !!document.getElementById('omarchy-adblock-style')}; })()""")
+    print("   ", st)
+    check(st["toaster"] != "none" and st["softwall"] != "none" and st["marked"] == 0 and not st["style"],
+          "with nothing turned on, no page is touched at all")
+
+    ctx = cdp.isolated_context(ws)
+    cdp.cjs(ws, ctx, "chrome.storage.local.set({enabled:true, mode:'auto', cookies:true, legal:true}).then(()=>1)")
     time.sleep(1.5)
 
     print("\n[a paywall popup that blurs the page behind it]")
