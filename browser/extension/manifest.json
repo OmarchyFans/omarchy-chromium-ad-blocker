@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Omarchy Chromium Ad Blocker",
-  "version": "3.6",
+  "version": "3.7",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAttC8DRm6sFP+oZYGsW3qJJPjzGZlrRFIXu8EVwUTmh4cxfArrT+iuYuhYbSPSS/qiGOLDc6rAru8FCOeH3zgWtB7DO/5k0c9rt7PUd2CEZ5Kv/REPBDN7UrCwci1xVJMscprwpW0bGY0gFxUVhnZp9VhUUxfhaokSagkQyC/W4cPDTfxFVMc+TGFiMYcy7H+dYz/adJCwfTlm/Qmj41Tj33JYXDeuBdbFk81v8ZZr8E+f2R0De7Hmmgcr0AX19trAxogPlm54woitB1lpIahtZrvTwKHfeu1vzMjwlezcFpadPX7gevpPROejPMRPr45wMjD8P47RrLKUczcTG0X6wIDAQAB",
   "description": "Removes ads, declines tracking consent, blocks third-party trackers and clears passive legal notices. Each is its own opt-in; a model on your own GPU handles what the rules miss.",
   "permissions": [

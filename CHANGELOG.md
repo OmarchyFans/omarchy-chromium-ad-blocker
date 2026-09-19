@@ -3,6 +3,12 @@
 The bar button reads the newest sections of this file to tell you what changed
 when an update is available. Keep one short line per bullet.
 
+## 1.4.0
+
+- An on/off switch at the top of the popup that says "Blocking is on" or "Blocking is off"
+- The toolbar icon goes grey with an OFF badge when the blocker is off
+- Nothing in the popup reloads the page any more, so no more "Reload site?" prompts
+
 ## 1.3.0
 
 - The blocker now ships **off**: nothing is touched until you tick "1 · Block ads"

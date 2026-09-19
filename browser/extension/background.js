@@ -87,7 +87,32 @@ function ask(payload) {
   });
 }
 
+// The toolbar icon carries the answer to "is it on?": full colour with counts
+// when it is on, grey with OFF when it is not.
+async function showState() {
+  const on = (await chrome.storage.local.get("enabled")).enabled === true;
+  try {
+    await chrome.action.setIcon({ path: on ? "icons/icon128.png" : "icons/icon128-off.png" });
+  } catch (e) { /* icon missing: the title and badge still say it */ }
+  await chrome.action.setTitle({
+    title: on ? "Omarchy Chromium Ad Blocker — on" : "Omarchy Chromium Ad Blocker — off",
+  });
+  if (!on) {
+    await chrome.action.setBadgeBackgroundColor({ color: "#8c8c94" });
+    await chrome.action.setBadgeText({ text: "OFF" });
+  } else {
+    await chrome.action.setBadgeText({ text: "" });
+  }
+  return on;
+}
+let blockerOn = false;
+const refreshState = () => showState().then((on) => { blockerOn = on; });
+chrome.runtime.onStartup.addListener(refreshState);
+chrome.runtime.onInstalled.addListener(refreshState);
+refreshState();
+
 function setBadge(tabId, n, mode) {
+  if (!blockerOn) return; // the OFF badge is not a count to be overwritten
   if (!tabId) return;
   chrome.action.setBadgeText({ tabId, text: n ? String(n) : "" });
   // Amber while they are only marked and waiting for the chord; grey once
@@ -251,6 +276,7 @@ async function applyPrivacySettings() {
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local") return;
+  if ("enabled" in changes) refreshState();
   if ("enabled" in changes || "cookies" in changes || "cookiesThirdParty" in changes || "history" in changes) {
     applyPrivacySettings();
   }

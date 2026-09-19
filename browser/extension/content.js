@@ -1062,6 +1062,25 @@
     // the fast one.
     if (msg.type === "enter-picker") { enterPicker(); sendResponse({ ok: true }); }
     else if (msg.type === "delete-all") { enterChord(); commitFromChord(); sendResponse({ ok: true }); }
+    else if (msg.type === "unlearn") {
+      // The learned rules for this site were just thrown away; take what they
+      // were hiding off the page too, and leave the person's own marks alone.
+      for (const [sel, source] of [...marks]) {
+        if (source !== "cache" && source !== "model") continue;
+        marks.delete(sel);
+        committed.delete(sel);
+        alreadyAsked.delete(sel);
+        for (const [el, s2] of markedEls) {
+          if (s2 !== sel) continue;
+          markedEls.delete(el);
+          el.removeAttribute(MARK_ATTR);
+          if (el.style.getPropertyValue("display") === "none") el.style.removeProperty("display");
+        }
+      }
+      rebuildStyle();
+      report();
+      sendResponse({ ok: true });
+    }
     else if (msg.type === "preview") { enterChord(); sendResponse({ ok: true }); }
     return false;
   });

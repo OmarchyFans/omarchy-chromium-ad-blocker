@@ -39,16 +39,19 @@ chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
   };
   syncSiteAuto();
 
-  // The first switch is the blocker itself: with it off nothing runs, so the
-  // other two are shown as unavailable rather than as promises.
+  // The switch at the top is the blocker itself: with it off nothing runs, so
+  // the three settings are shown as unavailable rather than as promises.
   const syncBodies = () => {
     const on = $("ads").checked;
+    $("master").classList.toggle("off", !on);
+    $("masterState").textContent = on ? "Blocking is on" : "Blocking is off";
+    $("masterSub").textContent = on
+      ? "Ads, popups, trackers and legal notices"
+      : "Nothing on any page is touched";
+    $("offNote").hidden = on;
     $("adsBody").hidden = !on;
     $("cookiesBody").hidden = !on || !$("cookies").checked;
     $("legalBody").hidden = !on || !$("legal").checked;
-    $("adsSub").textContent = on
-      ? "Ads, popups and overlays"
-      : "Off — nothing on any page is touched";
     for (const id of ["cookies", "legal", "allow", "forget"]) $(id).disabled = !on;
   };
   syncBodies();
@@ -95,9 +98,10 @@ chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
   $("preview").onclick = () => send("preview");
   $("pick").onclick = () => send("enter-picker");
 
-  // ---- settings. The page applies each change as it lands, so nothing here
-  // reloads the tab: turning on automatic removal cleans the page in place.
-  const reload = () => chrome.tabs.reload(tab.id);
+  // ---- settings. Every change is applied to the open page as it lands, so
+  // nothing here reloads the tab. A reload would raise Chromium's own
+  // "Reload site?" prompt on any page with unsaved work, which reads as the
+  // blocker asking for something and says nothing about whether it is on.
   const bind = (id, key, map = (v) => v) => {
     $(id).onchange = (e) => {
       chrome.storage.local.set({ [key]: map(e.target.checked) }, () => {
@@ -122,13 +126,19 @@ chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
     s[key] = next;
   };
   $("siteAuto").onchange = (e) => toggleIn("autoSites", e.target.checked);
-  // Leaving a site alone reloads it: what consent and legal handling already
-  // answered or removed can only be put back by loading the page fresh.
-  $("allow").onchange = (e) => toggleIn("allowlist", e.target.checked).then(reload);
+  // Leaving a site alone stops the blocker here and puts back what it hid. A
+  // consent dialog it already answered stays answered; only a fresh load would
+  // bring that back, and the note in the popup says so.
+  $("allow").onchange = (e) => toggleIn("allowlist", e.target.checked);
 
   $("forget").onclick = () => {
     if (!host) return;
-    chrome.runtime.sendMessage({ type: "forget", host }, reload);
+    chrome.runtime.sendMessage({ type: "forget", host }, () => {
+      void chrome.runtime.lastError;
+      // Put back what those rules were hiding, without a reload.
+      chrome.tabs.sendMessage(tab.id, { type: "unlearn" }, () => void chrome.runtime.lastError);
+      $("forget").textContent = "Forgotten — it will learn this site again";
+    });
   };
 
   chrome.runtime.sendMessage({ type: "status" }, (reply) => {

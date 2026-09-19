@@ -7,8 +7,10 @@ ship, so this reads the page instead: fast rules and page heuristics act
 instantly, and an optional model on your own GPU classifies the rest without
 sending the page anywhere.
 
-**It ships off.** Nothing is touched on any page until you tick **1 · Block ads**
-in the extension popup, per Chromium profile. To stop loading it in Chromium at
+**It ships off.** Nothing is touched on any page until you flip the switch at
+the top of the extension popup, per Chromium profile. The toolbar icon says
+which state it is in: full colour when it is on, grey with an **OFF** badge when
+it is not, and the tooltip spells it out. To stop loading it in Chromium at
 all, which is what you want when something else is misbehaving and you are
 ruling this out:
 
@@ -28,6 +30,9 @@ there is no terminal to ask on.
   outlined, press **Delete** to remove them all, or turn on automatic removal.
 - **Click to remove.** Point at anything the blocker missed; it goes, and it is
   remembered for that site.
+- **One switch, in words.** The popup opens on "Blocking is on" or "Blocking is
+  off" with a switch beside it. Nothing in the popup ever reloads the page, so
+  Chromium's own "Reload site?" prompt never appears on the blocker's behalf.
 - **Clean chosen sites automatically.** Tick "Clean this site automatically" in
   the popup and that site is cleaned on every visit, while automatic removal
   stays off everywhere else. Every setting applies to the open page at once,
