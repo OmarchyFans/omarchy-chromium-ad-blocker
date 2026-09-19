@@ -261,7 +261,7 @@ status)
   else
     echo "  Extension   NOT in chromium-flags.conf — run ./install.sh"
   fi
-  echo "  Blocking    off until you tick '1 · Block ads' in the extension popup, per Chromium profile"
+  echo "  Blocking    off until you flip the switch at the top of the extension popup, per Chromium profile"
   if [[ -f "$HOME/.config/chromium/NativeMessagingHosts/com.omarchy.adblock.json" ]]; then
     echo "  Host        registered"
   else
