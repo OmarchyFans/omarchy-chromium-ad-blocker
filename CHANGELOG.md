@@ -3,6 +3,10 @@
 The bar button reads the newest sections of this file to tell you what changed
 when an update is available. Keep one short line per bullet.
 
+## 1.4.2
+
+- `omarchy-adblock key` no longer accepts the API key as a command-line argument (readable by any local user via /proc/PID/cmdline, and left in shell history). It now prompts with no echo and never puts the key on a child process's argv.
+
 ## 1.4.1
 
 - The optional `--with-anthropic` install now installs a hash-locked, fully pinned dependency set instead of an unpinned `pip install --upgrade anthropic`

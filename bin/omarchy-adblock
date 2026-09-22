@@ -380,18 +380,43 @@ unmark)
   ;;
 
 key)
-  k="${2:?usage: omarchy-adblock key <api-key>}"
+  # The key never goes on argv or into a child process's command line: a
+  # positional argument here would be readable by any local user via
+  # /proc/<pid>/cmdline (and would land in shell history). Read it with no
+  # echo from the controlling terminal, then hand it to the writer over
+  # stdin, never as a Python argv element.
+  if [[ -n ${2:-} ]]; then
+    echo "the key can no longer be passed on the command line (any local user could read it); run 'omarchy-adblock key' with no argument and it will prompt" >&2
+    exit 1
+  fi
+  k=""
+  if [[ -t 0 ]]; then
+    read -r -s -p "Anthropic API key: " k </dev/tty || { echo "could not read from the controlling terminal" >&2; exit 1; }
+    printf '\n'
+  elif exec 4<>/dev/tty 2>/dev/null; then
+    exec 4<&-
+    read -r -s -p "Anthropic API key: " k </dev/tty >/dev/tty
+    printf '\n' >/dev/tty
+  else
+    echo "no controlling terminal to read the key from; run this interactively" >&2
+    exit 1
+  fi
+  [[ -n $k ]] || { echo "no key entered" >&2; exit 1; }
   mkdir -p "$CONFIG_DIR"
   # Rewrite the line rather than append, so a second call replaces the key
   # instead of leaving a stale one above it that the host would read first.
-  python3 - "$CONFIG_DIR/env" "$k" <<'PY'
-import pathlib, sys
-path, key = pathlib.Path(sys.argv[1]), sys.argv[2]
+  # The key travels to Python over fd 3 (not argv, not the heredoc's own
+  # stdin, which the script itself occupies).
+  python3 - "$CONFIG_DIR/env" 3<<<"$k" <<'PY'
+import os, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+key = os.fdopen(3).read().rstrip("\n")
 lines = path.read_text().splitlines() if path.is_file() else []
 lines = [l for l in lines if not l.startswith("ANTHROPIC_API_KEY=")]
 lines.append("ANTHROPIC_API_KEY=" + key)
 path.write_text("\n".join(lines) + "\n")
 PY
+  unset k
   chmod 600 "$CONFIG_DIR/env"
   echo "Key stored. Switch to it with: omarchy-adblock backend anthropic"
   ;;
