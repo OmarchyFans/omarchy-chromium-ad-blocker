@@ -99,10 +99,11 @@ if ((WITH_ANTHROPIC)); then
     say "Creating the Python environment in $VENV …"
     python3 -m venv "$VENV" || fail "could not create the virtualenv at $VENV"
   fi
-  say "Installing the anthropic SDK …"
-  "$VENV/bin/pip" install --quiet --upgrade pip >/dev/null 2>&1 || true
-  "$VENV/bin/pip" install --quiet --upgrade anthropic \
-    || fail "could not install the anthropic SDK"
+  say "Installing the anthropic SDK (hash-locked) …"
+  LOCKFILE="$REPO/requirements-anthropic.txt"
+  [[ -f "$LOCKFILE" ]] || fail "missing $LOCKFILE — the hash-locked anthropic install manifest"
+  "$VENV/bin/pip" install --quiet --require-hashes -r "$LOCKFILE" \
+    || fail "could not install the hash-locked anthropic SDK from $LOCKFILE"
 fi
 
 # --- 3. API key template -----------------------------------------------------
