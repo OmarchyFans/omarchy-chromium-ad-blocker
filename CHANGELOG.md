@@ -3,6 +3,10 @@
 The bar button reads the newest sections of this file to tell you what changed
 when an update is available. Keep one short line per bullet.
 
+## 1.4.1
+
+- The optional `--with-anthropic` install now installs a hash-locked, fully pinned dependency set instead of an unpinned `pip install --upgrade anthropic`
+
 ## 1.4.0
 
 - An on/off switch at the top of the popup that says "Blocking is on" or "Blocking is off"
